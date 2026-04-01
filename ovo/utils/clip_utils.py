@@ -1,10 +1,13 @@
 from typing import Any, Tuple
+from pathlib import Path
 from torchvision.transforms import Resize, Normalize, CenterCrop, Compose
 import open_clip
 import torch
 
 import core.vision_encoder.pe as pe
 import core.vision_encoder.transforms as transforms
+
+from . import path_utils
 
 
 def siglip_cosine_similarity(txt_embeds:torch.Tensor, img_embed: torch.Tensor, logit_scale:torch.Tensor, logit_bias:float) -> torch.Tensor:
@@ -88,13 +91,16 @@ def load_clip_model(model_card: str, use_half: bool) -> Tuple[Any, Any, Compose,
 
 
 def load_perception_encoder(model_card: str, ckpt_path = None) -> Tuple[Any, Any, Compose, str]:
+    ckpt_root = Path(ckpt_path) if ckpt_path is not None else path_utils.get_input_root() / "ckpts" / "pe"
+    if path_utils.is_data_path(ckpt_root):
+        ckpt_root = path_utils.resolve_data_path(ckpt_root)
 
     if "Core" in model_card:
-        model = pe.CLIP.from_config(model_card, pretrained=True, checkpoint_path=str(ckpt_path / f"data/input/ckpts/pe/{model_card}.pt") if ckpt_path else None).cuda()
+        model = pe.CLIP.from_config(model_card, pretrained=True, checkpoint_path=str(ckpt_root / f"{model_card}.pt")).cuda()
     elif "Spatial" in model_card:
-        model = pe.CLIP.from_config("PE-Core-G14-448", pretrained=True, checkpoint_path=str(ckpt_path / "data/input/ckpts/pe/PE-Core-G14-448.pt") if ckpt_path else None)
+        model = pe.CLIP.from_config("PE-Core-G14-448", pretrained=True, checkpoint_path=str(ckpt_root / "PE-Core-G14-448.pt"))
 
-        visual = pe.VisionTransformer.from_config(model_card, pretrained=True, checkpoint_path=str(ckpt_path /f"data/input/ckpts/pe/{model_card}.pt")).cuda()
+        visual = pe.VisionTransformer.from_config(model_card, pretrained=True, checkpoint_path=str(ckpt_root / f"{model_card}.pt")).cuda()
         visual.ln_post = model.visual.ln_post
         visual.proj = model.visual.proj
         visual.pool = model.visual._pool

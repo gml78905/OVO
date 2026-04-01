@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import json
 import imageio
+import warnings
 
 
 class BaseDataset(torch.utils.data.Dataset):
@@ -73,6 +74,24 @@ class Replica(BaseDataset):
         color_data = cv2.cvtColor(color_data, cv2.COLOR_BGR2RGB)
         depth_data = cv2.imread(
             str(self.depth_paths[index]), cv2.IMREAD_UNCHANGED)
+        if depth_data is None:
+            replacement = None
+            for neighbor_idx in (index - 1, index + 1):
+                if 0 <= neighbor_idx < len(self.depth_paths):
+                    candidate = cv2.imread(str(self.depth_paths[neighbor_idx]), cv2.IMREAD_UNCHANGED)
+                    if candidate is not None:
+                        replacement = (neighbor_idx, self.depth_paths[neighbor_idx], candidate)
+                        break
+            if replacement is None:
+                raise FileNotFoundError(
+                    f"Failed to read Replica depth frame {self.depth_paths[index]!s} and no neighboring replacement depth frame was readable."
+                )
+            neighbor_idx, neighbor_path, depth_data = replacement
+            warnings.warn(
+                f"Failed to read Replica depth frame {self.depth_paths[index]!s}; using neighboring depth frame {neighbor_path!s} from index {neighbor_idx} instead.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         depth_data = cv2.resize(depth_data.astype(float), (self.width, self.height), interpolation=cv2.INTER_NEAREST)
         depth_data = depth_data.astype(np.float32) / self.depth_scale
 

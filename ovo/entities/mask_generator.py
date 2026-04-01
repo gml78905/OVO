@@ -43,14 +43,20 @@ class MaskGenerator:
         else:
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
-            self.dtype = torch.bfloat16
+            # bfloat16 warmup can SIGSEGV in some Docker/GPU stacks; float32 is slower but stable.
+            if os.environ.get("OVO_SAM2_FP32", "").lower() in ("1", "true", "yes"):
+                self.dtype = torch.float32
+            else:
+                self.dtype = torch.bfloat16
         print("Loading SAM{}".format(sam_version))
         self.mask_generator = segment_utils.load_sam(config, device = self.device)
 
-        with torch.no_grad() and torch.autocast(device_type=self.device, dtype=self.dtype):
-            #First pass for compilation
-            self.mask_generator.generate(np.random.rand(512,512,3).astype(np.float32))
-            self.mask_generator.generate(np.random.rand(512,512,3).astype(np.float32)) 
+        with torch.no_grad():
+            with torch.autocast(device_type=self.device, dtype=self.dtype, enabled=(self.dtype != torch.float32)):
+                # Warmup can SIGSEGV on some CUDA/driver stacks. Keep it disabled by default.
+                if os.environ.get("OVO_ENABLE_SAM_WARMUP", "").lower() in ("1", "true", "yes"):
+                    self.mask_generator.generate(np.random.rand(512, 512, 3).astype(np.float32))
+                    self.mask_generator.generate(np.random.rand(512, 512, 3).astype(np.float32))
 
     def to(self, device: str) -> None:
         """

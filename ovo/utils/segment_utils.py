@@ -288,6 +288,15 @@ def load_sam(config: Dict[str, Any], device: str = "cuda") -> SamAutomaticMaskGe
     else:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
+        # SAM2 chooses Flash SDP on sm>=8; that path can SIGSEGV in some Docker/driver setups
+        # ("Loading SAM2.1" then crash). Transformer reads this at import time.
+        if os.environ.get("OVO_SAM2_ALLOW_FLASH", "").lower() not in ("1", "true", "yes"):
+            import sam2.utils.misc as _sam2_misc
+
+            def _ovo_sdpa_settings():
+                return False, False, True  # old_gpu, use_flash_attn, math_kernel_on
+
+            _sam2_misc.get_sdpa_settings = _ovo_sdpa_settings
         from sam2.build_sam import build_sam2
         from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator as SamAutomaticMaskGenerator
 

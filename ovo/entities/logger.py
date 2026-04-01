@@ -5,6 +5,7 @@ import psutil
 import pprint
 import torch
 import wandb
+import warnings
 
 class Logger:
     def __init__(self, output_path: str, pid: int | None = None, use_wandb: bool = False) -> None:
@@ -15,7 +16,15 @@ class Logger:
             "frame_id", "t_sam", "t_obj","n_obj", "n_matches", "t_up", "t_seg",   "t_clip", "avg_fps", "ram", "vram", "spf"]
         
         self.stats ={key: [] for key in stat_keys}
-        self.python_process = psutil.Process(pid)
+        try:
+            self.python_process = psutil.Process(pid) if pid is not None else psutil.Process()
+        except (psutil.NoSuchProcess, psutil.Error):
+            # Some debug/container setups may report a transient PID that psutil cannot resolve.
+            warnings.warn(
+                f"Logger could not access process stats for pid={pid}; RAM logging will be disabled.",
+                RuntimeWarning,
+            )
+            self.python_process = None
         self.use_wandb = use_wandb
 
     def log_ovo_stats(self, stats: Dict[str, Any], print_output=False) -> None:
@@ -62,7 +71,12 @@ class Logger:
         """
         torch.cuda.synchronize()
         vram_used = torch.cuda.memory_allocated("cuda") / (1000 ** 3)
-        ram_used = self.python_process.memory_info().rss/(1000 ** 3)
+        ram_used = np.nan
+        if self.python_process is not None:
+            try:
+                ram_used = self.python_process.memory_info().rss/(1000 ** 3)
+            except psutil.Error:
+                pass
         self.stats["vram"].append(vram_used)
         self.stats["ram"].append(ram_used)
         if self.use_wandb:

@@ -58,7 +58,9 @@ def match_3d_points_to_2d_pixels(depth: torch.Tensor, w2c: torch.Tensor, points_
     h,w = depth.shape
     device = points_3d.device
     n_points = points_3d.shape[0]
-    idx = torch.tensor(list(range(n_points)), device=device)
+    if n_points == 0:
+        return torch.empty((0,), device=device, dtype=torch.long), torch.empty((0, 2), device=device, dtype=torch.int)
+    idx = torch.arange(n_points, device=device, dtype=torch.long)
     # move 3d points to local reference
     if points_3d.shape[-1] == 3:
         points_3d = torch.hstack([points_3d,torch.ones((n_points,1), device=device)])

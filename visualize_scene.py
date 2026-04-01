@@ -6,13 +6,16 @@ import yaml
 
 from ovo.entities.visualizer import visualize_3d_points_obj_id_and_obb, visualize_gt_vs_pred, Visualizer   
 from ovo.utils.io_utils import load_config, load_scene_data, read_labels
+from ovo.utils import path_utils
 from run_eval import load_representation
 
 def capitalize_first(text):
   return text[0].upper() + text[1:]
 
 def main(args):
-    run_path = Path(args.working_dir) / args.run_path
+    run_path = path_utils.resolve_data_path(args.run_path) if path_utils.is_data_path(args.run_path) else Path(args.run_path)
+    if not run_path.is_absolute():
+        run_path = Path(args.working_dir) / run_path
     config = load_config(run_path/"config.yaml")
 
     semantic_module, params = load_representation(run_path, eval=True)
@@ -22,8 +25,8 @@ def main(args):
     dataset_name = capitalize_first(config["dataset_name"])
     if dataset_name == "Scannet":
         dataset_name = "ScanNet"
-    path = Path(args.working_dir) / "data/working/configs/" / dataset_name  / args.dataset_info_file
-    data_path = Path(args.working_dir) / "data/input/Datasets/"
+    path = path_utils.get_configs_root() / dataset_name / args.dataset_info_file
+    data_path = path_utils.get_datasets_root()
     with open(path, 'r') as f:
         dataset_info = yaml.full_load(f)
     
@@ -69,7 +72,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Arguments to train and evaluate over a dataset')
     parser.add_argument('run_path', type=str)
-    parser.add_argument('--working_dir', default="/home/tberriel/Workspaces/semsplat_ws/OVO/", type=str)
+    parser.add_argument('--working_dir', default=".", type=str)
     parser.add_argument('--visualize_obj', action='store_true')
     parser.add_argument('--visualize_interactive_query', action='store_true')
     parser.add_argument('--visualize_gt_vs_pre', action='store_true')

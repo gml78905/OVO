@@ -12,7 +12,16 @@ import gc
 import os
 import shutil
 
-from ovo.utils import io_utils, gen_utils, eval_utils
+# SAM2: transformer reads get_sdpa_settings() at import time — patch before any sam2 submodule import.
+if os.environ.get("OVO_SAM2_ALLOW_FLASH", "").lower() not in ("1", "true", "yes"):
+    try:
+        import sam2.utils.misc as _sam2_misc
+
+        _sam2_misc.get_sdpa_settings = lambda: (False, False, True)
+    except ImportError:
+        pass
+
+from ovo.utils import io_utils, gen_utils, eval_utils, path_utils
 from ovo.entities.ovomapping import OVOSemMap
 from ovo.entities.ovo import OVO
 
@@ -63,27 +72,32 @@ def compute_scene_labels(scene_path: Path, dataset_name: str, scene_name: str, d
 
 def run_scene(scene: str, dataset: str, experiment_name: str, tmp_run: bool = False, depth_filter: bool = None) -> None:
 
-    config = io_utils.load_config("data/working/configs/ovo.yaml")
+    config = io_utils.load_config(path_utils.get_configs_root() / "ovo.yaml")
+    config = path_utils.remap_data_paths(config)
     map_module = config["slam"]["slam_module"]
     if map_module.startswith("orbslam"):
         map_module = "vanilla"
         
-    config_slam = io_utils.load_config(os.path.join(config["slam"]["config_path"],  map_module, dataset.lower()+".yaml"))
+    config_slam = io_utils.load_config(Path(config["slam"]["config_path"]) / map_module / f"{dataset.lower()}.yaml")
+    config_slam = path_utils.remap_data_paths(config_slam)
     io_utils.update_recursive(config, config_slam)
 
-    config_dataset = io_utils.load_config(f"data/working/configs/{dataset}/{dataset.lower()}.yaml")
+    config_dataset = io_utils.load_config(path_utils.get_configs_root() / dataset / f"{dataset.lower()}.yaml")
+    config_dataset = path_utils.remap_data_paths(config_dataset)
     io_utils.update_recursive(config, config_dataset)
     
-    if os.path.exists(f"data/working/configs/{dataset}/{scene}.yaml"):
-        config_scene = io_utils.load_config(f"data/working/configs/{dataset}/{scene}.yaml")
+    scene_config_path = path_utils.get_configs_root() / dataset / f"{scene}.yaml"
+    if scene_config_path.exists():
+        config_scene = io_utils.load_config(scene_config_path)
+        config_scene = path_utils.remap_data_paths(config_scene)
         io_utils.update_recursive(config, config_scene)
         
     if "data" not in config:
         config["data"] = {}
     config["data"]["scene_name"] = scene
-    config["data"]["input_path"] = f"data/input/Datasets/{dataset}/{scene}"
+    config["data"]["input_path"] = str(path_utils.get_datasets_root() / dataset / scene)
 
-    output_path = Path(f"data/output/{dataset}/")
+    output_path = path_utils.get_output_root() / dataset
 
     if tmp_run:
         output_path = output_path / "tmp"
@@ -99,7 +113,7 @@ def run_scene(scene: str, dataset: str, experiment_name: str, tmp_run: bool = Fa
         wandb.init(
             project=config["project_name"],
             config=config,
-            dir="data/working/output/wandb",
+            dir=str(path_utils.get_working_output_root() / "wandb"),
             group=config["data"]["scene_name"]
             if experiment_name != ""
             else experiment_name,
@@ -111,7 +125,7 @@ def run_scene(scene: str, dataset: str, experiment_name: str, tmp_run: bool = Fa
     gslam.run()
 
     if tmp_run:
-        final_path = Path(f"data/output/{dataset}/") / experiment_name / scene
+        final_path = path_utils.get_output_root() / dataset / experiment_name / scene
         shutil.move(output_path, final_path)
 
     if config["use_wandb"]:
@@ -127,7 +141,7 @@ def main(args):
         experiment_name = args.experiment_name
         tmp_run = False
 
-    experiment_path = Path("data/output") / args.dataset_name / experiment_name
+    experiment_path = path_utils.get_output_root() / args.dataset_name / experiment_name
 
     if args.scenes_list is not None:
         with open(args.scenes_list, "r") as f:
@@ -136,7 +150,7 @@ def main(args):
         scenes = args.scenes
 
     if len(scenes) == 0 or args.segment or args.eval:
-        path = Path("data/working/configs/") / args.dataset_name / args.dataset_info_file
+        path = path_utils.get_configs_root() / args.dataset_name / args.dataset_info_file
         with open(path, 'r') as f:
             dataset_info = yaml.full_load(f)
 
@@ -144,7 +158,7 @@ def main(args):
             scenes = dataset_info["scenes"]
 
     for scene in scenes:        
-        input_path = f"./data/input/Datasets/{args.dataset_name}/{scene}"
+        input_path = str(path_utils.get_datasets_root() / args.dataset_name / scene)
         if args.run:
             t0 = time.time()
             run_scene(scene, args.dataset_name, experiment_name, tmp_run = tmp_run)
@@ -153,7 +167,7 @@ def main(args):
         gc.collect()
  
     if args.segment: 
-        data_path ="data/input/Datasets/"
+        data_path = str(path_utils.get_datasets_root())
         for scene in scenes:    
             scene_path = experiment_path / scene
             compute_scene_labels(scene_path, args.dataset_name, scene, data_path, dataset_info)
@@ -171,7 +185,7 @@ if __name__ == "__main__":
         description='Arguments to run and evaluate over a dataset')
     parser.add_argument('--dataset_name', help="Dataset used. Choose either `Replica`, `ScanNet`")
     parser.add_argument('--scenes', nargs="+", type=str, default=[], help=" List of scenes from given dataset to run.  If `--scenes_list` is set, this flag will be ignored.")
-    parser.add_argument('--scenes_list',type=str, default=None, help="Path to a txt containing a scene name on each line. If set, `--scenes` is ignored. If neither `--scenes` nor `--scenes_list` are set, the scene list will be loaded from `data/working/config/<dataset_name>/<dataset_info_file>`")
+    parser.add_argument('--scenes_list',type=str, default=None, help="Path to a txt containing a scene name on each line. If set, `--scenes` is ignored. If neither `--scenes` nor `--scenes_list` are set, the scene list will be loaded from `<OVO_DATA_ROOT>/working/configs/<dataset_name>/<dataset_info_file>`")
     parser.add_argument('--dataset_info_file',type=str, default="eval_info.yaml")
     parser.add_argument('--experiment_name', default=None, type=str)
     parser.add_argument('--run', action='store_true', help="If set, compute the final metrics, after running OVO and segmenting.")
