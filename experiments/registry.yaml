@@ -2,9 +2,19 @@
   name: baseline
   date: 2026-04-02
   branch: baseline/2026-04-02-current-worktree
-  commit: 34bf6f6
+  commit: 3b0474e
   baseline: null
   status: committed
   result_path: experiments/2026-04-02_baseline.md
   working_tree: dirty
   summary: "Baseline snapshot captured from the current working tree."
+- id: exp-001
+  name: baseline_office0
+  date: 2026-04-02
+  branch: baseline/2026-04-02-current-worktree
+  commit: 3b0474e
+  baseline: exp-000
+  status: done
+  result_path: experiments/2026-04-02_baseline-office0/notes.md
+  scene: office0
+  summary: "Replica office0 baseline completed: 35.6% mIoU, 47.4% mAcc, 3.141s mean step time."

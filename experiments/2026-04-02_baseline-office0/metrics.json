@@ -1,0 +1,43 @@
+{
+  "experiment_id": "exp-001",
+  "name": "baseline_office0",
+  "date": "2026-04-02",
+  "branch": "baseline/2026-04-02-current-worktree",
+  "commit": "3b0474e",
+  "scene": "office0",
+  "dataset": "Replica",
+  "command": "OVO_DATA_ROOT=/ws/data/OVO DISABLE_WANDB=true python run_eval.py --dataset_name Replica --experiment_name baseline_office0 --scenes office0 --run --segment --eval",
+  "run": {
+    "scene_time_sec": 710.54,
+    "avg_fps": 0.291,
+    "avg_spf": 3.141,
+    "avg_t_sam": 3.017,
+    "avg_t_obj": 0.023,
+    "avg_t_clip": 0.097,
+    "avg_t_up": 0.008,
+    "avg_vram_gb": 4.425,
+    "max_vram_gb": 5.9,
+    "max_vram_reserved_gb": 8.33,
+    "avg_ram_gb": 2.911,
+    "n_matches_mean": 315945.235
+  },
+  "eval": {
+    "miou": 0.356,
+    "macc": 0.474,
+    "f_miou": 0.547,
+    "f_macc": 0.686,
+    "head_iou": 0.428,
+    "head_acc": 0.552,
+    "comm_iou": 0.204,
+    "comm_acc": 0.313,
+    "tail_iou": 0.344,
+    "tail_acc": 0.459
+  },
+  "artifacts": {
+    "stdout_log": "/ws/external/experiments/2026-04-02_baseline-office0/stdout.log",
+    "output_root": "/ws/data/OVO/output/Replica/baseline_office0",
+    "analysis_report": "/ws/data/OVO/output/Replica/baseline_office0/analysis/report.md",
+    "prediction": "/ws/data/OVO/output/Replica/baseline_office0/replica/office0.txt",
+    "statistics": "/ws/data/OVO/output/Replica/baseline_office0/replica/statistics.txt"
+  }
+}
