@@ -1,0 +1,10 @@
+- id: exp-000
+  name: baseline
+  date: 2026-04-02
+  branch: baseline/2026-04-02-current-worktree
+  commit: pending
+  baseline: null
+  status: committed
+  result_path: experiments/2026-04-02_baseline.md
+  working_tree: dirty
+  summary: "Baseline snapshot captured from the current working tree."

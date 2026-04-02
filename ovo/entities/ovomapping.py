@@ -206,6 +206,13 @@ class OVOSemMap():
                                     query_pipe.send(query_map)
                                     query_flag.value = 2
                     if t_sem+t_lc > 0:
+                        self.logger.log_ovo_stats(
+                            {
+                                "frame_id": frame_id,
+                                "t_seg": round(t_sem, 3),
+                                "t_lc": round(t_lc, 3),
+                            }
+                        )
                         spf.append(t_sem + t_lc)         
 
                     if frame_id % 50 == 0:

@@ -138,12 +138,14 @@ class OVO:
         frame_id, image = frame_data[:2]
 
         seg_maps, binary_maps = self._get_masks(image, frame_id)
+        vram_sam = self.logger.current_vram_gb() if self.config.get("log", False) else None
         if len(seg_maps) == 0:
             print(f"No mask segmented in {frame_id}!")
             return None
 
         last_id = self.next_ins_id
         matched_ins_ids, binary_maps, n_matched_points, updated_ponts_ins_ids = self._match_and_track_instances(frame_data[1:], map_data, c2w, seg_maps, binary_maps)
+        vram_obj = self.logger.current_vram_gb() if self.config.get("log", False) else None
             
         # Save keyframe information
         self.keyframes_queue.append([matched_ins_ids, binary_maps, image, self.kf_id])
@@ -158,6 +160,8 @@ class OVO:
                     "n_matches":n_matched_points, 
                     "t_sam":round(self._time_cache[0],2),
                     "t_obj":round(self._time_cache[1],3),
+                    "vram_sam": round(vram_sam, 3),
+                    "vram_obj": round(vram_obj, 3),
                 },
                 print_output=True
                 )
@@ -347,7 +351,9 @@ class OVO:
                 matched_ins_ids, binary_maps = np.asarray(matched_ins_ids)[obj_to_compute].tolist(), binary_maps[obj_to_compute]
 
             clip_embeds = self._extract_clip(image, binary_maps).cpu()
+            vram_clip = self.logger.current_vram_gb() if self.config.get("log", False) else None
             self._update_matched_objects_clip(clip_embeds, matched_ins_ids, kf_id)
+            vram_up = self.logger.current_vram_gb() if self.config.get("log", False) else None
 
             if self.config.get("log", False):
                 frame_id = self.keyframes["frame_id"][kf_id]
@@ -356,7 +362,9 @@ class OVO:
                     "frame_id":frame_id,
                     #"t_seg": round(self._time_cache[0],2),
                     "t_clip": round(self._time_cache[0],2),
-                    "t_up": round(self._time_cache[1],3)
+                    "t_up": round(self._time_cache[1],3),
+                    "vram_clip": round(vram_clip, 3),
+                    "vram_up": round(vram_up, 3),
                     }
                     ,
                     print_output=True
@@ -387,6 +395,7 @@ class OVO:
                 objects_list.append(self.objects[ins_id])
             else:
                 objects_to_del.append(self.objects[ins_id])
+
         # 2. Fuse 3D instances that fulfill a condition. 
         # TODO: optimize brute-force approach (compare all instances to each-other)
         #precompute pointcloud

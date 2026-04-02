@@ -1,4 +1,5 @@
 from typing import Dict
+from typing import Dict
 from datetime import datetime
 from pathlib import Path
 import argparse
@@ -59,7 +60,10 @@ def compute_scene_labels(scene_path: Path, dataset_name: str, scene_name: str, d
     mesh_instance_labels, mesh_instances_masks, matched_instances_ids = eval_utils.match_labels_to_vtx(points_obj_ids[:,0], pcd_pred, pcd_gt)
     
     map_id_to_idx = {id: i for i, id in enumerate(ovo.objects.keys())}
-    mesh_semantic_labels = instances_info["classes"][np.vectorize(map_id_to_idx.get)(mesh_instance_labels)]
+    mesh_instance_idx = np.array([map_id_to_idx.get(int(obj_id), -1) for obj_id in mesh_instance_labels], dtype=np.int64)
+    mesh_semantic_labels = np.full(mesh_instance_idx.shape, -1, dtype=np.int64)
+    valid_mask = mesh_instance_idx >= 0
+    mesh_semantic_labels[valid_mask] = instances_info["classes"][mesh_instance_idx[valid_mask]]
     instances_info["masks"] = mesh_instances_masks.int().numpy()
 
     print(f"Writing prediction to {pred_path}!")
@@ -70,7 +74,13 @@ def compute_scene_labels(scene_path: Path, dataset_name: str, scene_name: str, d
     del ovo
 
 
-def run_scene(scene: str, dataset: str, experiment_name: str, tmp_run: bool = False, depth_filter: bool = None) -> None:
+def run_scene(
+    scene: str,
+    dataset: str,
+    experiment_name: str,
+    tmp_run: bool = False,
+    depth_filter: bool = None,
+) -> None:
 
     config = io_utils.load_config(path_utils.get_configs_root() / "ovo.yaml")
     config = path_utils.remap_data_paths(config)
@@ -161,7 +171,12 @@ def main(args):
         input_path = str(path_utils.get_datasets_root() / args.dataset_name / scene)
         if args.run:
             t0 = time.time()
-            run_scene(scene, args.dataset_name, experiment_name, tmp_run = tmp_run)
+            run_scene(
+                scene,
+                args.dataset_name,
+                experiment_name,
+                tmp_run=tmp_run,
+            )
             t1 = time.time()
             print(f"Scene {scene} took: {t1-t0:.2f}")
         gc.collect()

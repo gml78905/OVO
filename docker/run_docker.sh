@@ -34,7 +34,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # 런타임 data 루트: 호스트 /media/gml78905/T75/wh -> 컨테이너 /ws/data
-DATASET_DIR="${OVO_HOST_DATA_ROOT:-/media/gml78905/T7/wh}"
+DATASET_DIR="${OVO_HOST_DATA_ROOT:-/media/TrainDataset/wh}"
 DATASET_MOUNT="/ws/data"
 DATA_ROOT_IN_CONTAINER="${OVO_DATA_ROOT:-${DATASET_MOUNT}/OVO}"
 
@@ -96,7 +96,12 @@ if [ -n "${DEBUGPY_PORT}" ]; then
     PORT_ARGS=(-p "${DEBUGPY_PORT}:${DEBUGPY_PORT}")
 fi
 
-DOCKER_RUN=(docker run -it --rm
+DOCKER_TTY_ARGS=(-i)
+if [ -t 0 ] && [ -t 1 ]; then
+    DOCKER_TTY_ARGS=(-it)
+fi
+
+DOCKER_RUN=(docker run "${DOCKER_TTY_ARGS[@]}" --rm
     ${GPU_FLAG}
     --name "${CONTAINER_NAME}"
     --ipc=host

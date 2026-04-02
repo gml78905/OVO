@@ -13,7 +13,10 @@ class Logger:
         (self.output_path / "logger").mkdir(exist_ok=True, parents=True)
         (self.output_path / "logger" / "segment_vis").mkdir(exist_ok=True, parents=True)
         stat_keys = [
-            "frame_id", "t_sam", "t_obj","n_obj", "n_matches", "t_up", "t_seg",   "t_clip", "avg_fps", "ram", "vram", "spf"]
+            "frame_id", "t_sam", "t_obj", "t_clip", "t_up", "t_seg", "t_lc",
+            "n_obj", "n_matches", "avg_fps", "ram", "vram", "vram_reserved",
+            "vram_sam", "vram_obj", "vram_clip", "vram_up", "spf"
+        ]
         
         self.stats ={key: [] for key in stat_keys}
         try:
@@ -71,6 +74,7 @@ class Logger:
         """
         torch.cuda.synchronize()
         vram_used = torch.cuda.memory_allocated("cuda") / (1000 ** 3)
+        vram_reserved = torch.cuda.memory_reserved("cuda") / (1000 ** 3)
         ram_used = np.nan
         if self.python_process is not None:
             try:
@@ -78,15 +82,23 @@ class Logger:
             except psutil.Error:
                 pass
         self.stats["vram"].append(vram_used)
+        self.stats["vram_reserved"].append(vram_reserved)
         self.stats["ram"].append(ram_used)
         if self.use_wandb:
             wandb.log(
                 {
                     "Semantic/Frame": frame_id,
                     "Semantic/vram": vram_used,
+                    "Semantic/vram_reserved": vram_reserved,
                     "Semantic/ram": ram_used,
                 }
             )
+
+    def current_vram_gb(self) -> float:
+        if not torch.cuda.is_available():
+            return np.nan
+        torch.cuda.synchronize()
+        return torch.cuda.memory_allocated("cuda") / (1000 ** 3)
 
     def log_max_memory_usage(self) -> None:
         """
@@ -94,6 +106,7 @@ class Logger:
         """
         torch.cuda.synchronize()
         self.stats["max_vram"] = [torch.cuda.max_memory_allocated("cuda") / (1000 ** 3)]
+        self.stats["max_vram_reserved"] = [torch.cuda.max_memory_reserved("cuda") / (1000 ** 3)]
         self.stats["max_ram"] = [np.asarray(self.stats["ram"]).max()]
 
     def write_stats(self) -> None:
