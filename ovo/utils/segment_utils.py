@@ -3,10 +3,12 @@ from typing import Dict, Any, Tuple, List
 
 import torchvision.transforms.functional as F
 from copy import deepcopy
+from pathlib import Path
 import numpy as np
 import heapq
 import torch
 import os
+import sys
 
 
 def mask2segmap(masks: np.ndarray, image: np.ndarray, sort: bool = True) -> Tuple[np.ndarray, np.ndarray] :
@@ -266,14 +268,76 @@ def box_xyxy_to_xywh(box_xyxy: torch.Tensor) -> torch.Tensor:
     return box_xywh
 
 
+class FastSAMAutomaticMaskGenerator:
+    """Adapter that exposes a SAM-like `generate(image)` interface for FastSAM."""
+
+    def __init__(self, config: Dict[str, Any], checkpoint_path: str, device: str = "cuda") -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        fastsam_root = repo_root / "thirdParty" / "FastSAM"
+        if str(fastsam_root) not in sys.path:
+            sys.path.insert(0, str(fastsam_root))
+
+        from fastsam import FastSAM, FastSAMPrompt
+
+        self.device = device
+        self.prompt_cls = FastSAMPrompt
+        self.model = FastSAM(checkpoint_path)
+        self.imgsz = config.get("fastsam_imgsz", 1024)
+        self.conf = config.get("nms_score_th", 0.7)
+        self.iou = config.get("nms_iou_th", 0.8)
+        self.retina_masks = True
+        self.max_det = config.get("fastsam_max_det", 1000)
+
+    def generate(self, image: np.ndarray) -> List[Dict[str, Any]]:
+        results = self.model(
+            image,
+            device=self.device,
+            retina_masks=self.retina_masks,
+            imgsz=self.imgsz,
+            conf=self.conf,
+            iou=self.iou,
+            max_det=self.max_det,
+        )
+        if results is None or len(results) == 0 or results[0].masks is None:
+            return []
+
+        prompt = self.prompt_cls(image, results, device=self.device)
+        annotations = prompt._format_results(results[0], 0)
+        masks = []
+        for ann in annotations:
+            score = float(ann["score"])
+            bbox = ann["bbox"].detach().cpu().numpy() if hasattr(ann["bbox"], "detach") else ann["bbox"]
+            bbox = np.asarray(bbox, dtype=np.float32)[:4]
+            bbox[2] -= bbox[0]
+            bbox[3] -= bbox[1]
+            masks.append(
+                {
+                    "segmentation": ann["segmentation"].astype(bool),
+                    "bbox": bbox,
+                    "predicted_iou": score,
+                    "stability_score": score,
+                }
+            )
+        return masks
+
+
 def load_sam(config: Dict[str, Any], device: str = "cuda") -> SamAutomaticMaskGenerator:
     """ Load SAM or SAM2 model
     """
     sam_version = config.get("sam_version","2.1")
 
-    model_cards = {"vit_b": "vit_b_01ec64.pth", "vit_h": "vit_h_4b8939.pth", "hiera_l": "hiera_large.pt", "hiera_t": "hiera_tiny.pt"}
+    model_cards = {
+        "FastSAM": "FastSAM.pt",
+        "vit_b": "vit_b_01ec64.pth",
+        "vit_h": "vit_h_4b8939.pth",
+        "hiera_l": "hiera_large.pt",
+        "hiera_t": "hiera_tiny.pt",
+    }
     sam_encoder = config.get("sam_encoder","hiera_l")
-    checkpoint_path =  os.path.join(config["sam_ckpt_path"],f"sam{sam_version}_{model_cards[sam_encoder]}") 
+    if sam_version == "fast":
+        checkpoint_path = os.path.join(config["sam_ckpt_path"], model_cards[sam_encoder])
+    else:
+        checkpoint_path =  os.path.join(config["sam_ckpt_path"],f"sam{sam_version}_{model_cards[sam_encoder]}") 
             
     if sam_version == "":
         from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
@@ -285,6 +349,8 @@ def load_sam(config: Dict[str, Any], device: str = "cuda") -> SamAutomaticMaskGe
             "stability_score_thresh": config.get("stability_score_th",0.85),
             "min_mask_region_area": config.get("min_mask_region_area", 100),
         }
+    elif sam_version == "fast":
+        return FastSAMAutomaticMaskGenerator(config, checkpoint_path=checkpoint_path, device=device)
     else:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True

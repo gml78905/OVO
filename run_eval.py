@@ -117,6 +117,15 @@ def run_scene(
     if depth_filter is not None:
         config["semantic"]["depth_filter"] = depth_filter
 
+    sam_overrides = {
+        "sam_version": os.environ.get("OVO_SAM_VERSION"),
+        "sam_encoder": os.environ.get("OVO_SAM_ENCODER"),
+        "sam_ckpt_path": os.environ.get("OVO_SAM_CKPT_PATH"),
+    }
+    for key, value in sam_overrides.items():
+        if value:
+            config["semantic"]["sam"][key] = value
+
     if os.getenv('DISABLE_WANDB') == 'true':
         config["use_wandb"] = False
     elif config["use_wandb"]:

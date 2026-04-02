@@ -4,3 +4,6 @@
 [submodule "thirdParty/perception_models"]
 	path = thirdParty/perception_models
 	url = https://github.com/facebookresearch/perception_models
+[submodule "thirdParty/FastSAM"]
+	path = thirdParty/FastSAM
+	url = https://github.com/CASIA-IVA-Lab/FastSAM.git

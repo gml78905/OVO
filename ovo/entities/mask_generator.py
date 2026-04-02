@@ -38,7 +38,7 @@ class MaskGenerator:
 
     def load_mask_generator(self, config: Dict[str, Any]) -> None:
         sam_version = config.get("sam_version", "")
-        if sam_version == "":
+        if sam_version in ("", "fast"):
             self.dtype = torch.float32
         else:
             torch.backends.cuda.matmul.allow_tf32 = True
@@ -66,7 +66,12 @@ class MaskGenerator:
         """
         self.device = device
         if self.mask_generator:
-            self.mask_generator.predictor.model.to(device)
+            if hasattr(self.mask_generator, "predictor") and getattr(self.mask_generator.predictor, "model", None) is not None:
+                self.mask_generator.predictor.model.to(device)
+            elif hasattr(self.mask_generator, "model"):
+                model = self.mask_generator.model
+                if hasattr(model, "to"):
+                    model.to(device)
 
     def cpu(self) -> None:
         """
@@ -74,7 +79,14 @@ class MaskGenerator:
         """
         self.device = "cpu"
         if self.mask_generator:
-            self.mask_generator.predictor.model.cpu()
+            if hasattr(self.mask_generator, "predictor") and getattr(self.mask_generator.predictor, "model", None) is not None:
+                self.mask_generator.predictor.model.cpu()
+            elif hasattr(self.mask_generator, "model"):
+                model = self.mask_generator.model
+                if hasattr(model, "cpu"):
+                    model.cpu()
+                elif hasattr(model, "to"):
+                    model.to("cpu")
 
     def cuda(self) -> None:
         """
@@ -82,7 +94,14 @@ class MaskGenerator:
         """
         self.device = "cuda"
         if self.mask_generator:
-            self.mask_generator.predictor.model.cuda()
+            if hasattr(self.mask_generator, "predictor") and getattr(self.mask_generator.predictor, "model", None) is not None:
+                self.mask_generator.predictor.model.cuda()
+            elif hasattr(self.mask_generator, "model"):
+                model = self.mask_generator.model
+                if hasattr(model, "cuda"):
+                    model.cuda()
+                elif hasattr(model, "to"):
+                    model.to("cuda")
     
     def get_masks(self, image: np.ndarray, frame_id: int = None):
         """
