@@ -48,3 +48,13 @@
   result_path: experiments/2026-04-02_sam2-hiera-s-office0/notes.md
   scene: office0
   summary: "SAM2.1 hiera_s office0 run completed: 29.5% mIoU, 40.3% mAcc, 2.664s mean step time, 3.699 GB mean VRAM."
+- id: exp-005
+  name: prob_tracklet_graph_v1_office0
+  date: 2026-04-02
+  branch: exp/prob-tracklet-graph-v1-office0
+  commit: 6baaf80
+  baseline: exp-003
+  status: done
+  result_path: experiments/2026-04-02_prob-tracklet-graph-v1-office0/notes.md
+  scene: office0
+  summary: "Probabilistic reversible grouping v1 on office0: 31.5% mIoU, 45.2% mAcc, 2.436s mean step time, 130 semantic groups from 134 proto-objects."
