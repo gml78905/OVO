@@ -271,7 +271,13 @@ def load_sam(config: Dict[str, Any], device: str = "cuda") -> SamAutomaticMaskGe
     """
     sam_version = config.get("sam_version","2.1")
 
-    model_cards = {"vit_b": "vit_b_01ec64.pth", "vit_h": "vit_h_4b8939.pth", "hiera_l": "hiera_large.pt", "hiera_t": "hiera_tiny.pt"}
+    model_cards = {
+        "vit_b": "vit_b_01ec64.pth",
+        "vit_h": "vit_h_4b8939.pth",
+        "hiera_l": "hiera_large.pt",
+        "hiera_s": "hiera_small.pt",
+        "hiera_t": "hiera_tiny.pt",
+    }
     sam_encoder = config.get("sam_encoder","hiera_l")
     checkpoint_path =  os.path.join(config["sam_ckpt_path"],f"sam{sam_version}_{model_cards[sam_encoder]}") 
             
