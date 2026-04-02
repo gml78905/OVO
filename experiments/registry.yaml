@@ -38,3 +38,13 @@
   result_path: experiments/2026-04-02_sam2-hiera-t-office0/notes.md
   scene: office0
   summary: "SAM2.1 hiera_t office0 run completed: 30.6% mIoU, 42.5% mAcc, 2.471s mean step time, 3.666 GB mean VRAM."
+- id: exp-004
+  name: sam2_hiera_s_office0
+  date: 2026-04-02
+  branch: exp/sam2-hiera-s-office0
+  commit: bdfe6f1
+  baseline: exp-001
+  status: done
+  result_path: experiments/2026-04-02_sam2-hiera-s-office0/notes.md
+  scene: office0
+  summary: "SAM2.1 hiera_s office0 run completed: 29.5% mIoU, 40.3% mAcc, 2.664s mean step time, 3.699 GB mean VRAM."

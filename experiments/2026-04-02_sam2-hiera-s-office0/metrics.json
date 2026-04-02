@@ -1,0 +1,71 @@
+{
+  "experiment_id": "exp-004",
+  "name": "sam2_hiera_s_office0",
+  "date": "2026-04-02",
+  "branch": "exp/sam2-hiera-s-office0",
+  "commit": "bdfe6f1",
+  "scene": "office0",
+  "dataset": "Replica",
+  "command": "OVO_DATA_ROOT=/ws/data/OVO DISABLE_WANDB=true OVO_SAM_ENCODER=hiera_s python run_eval.py --dataset_name Replica --experiment_name sam2_hiera_s_office0 --scenes office0 --run --segment --eval",
+  "run": {
+    "scene_time_sec": 606.74,
+    "avg_fps": 0.340,
+    "avg_spf": 2.664,
+    "avg_t_sam": 2.545,
+    "avg_t_obj": 0.021,
+    "avg_t_clip": 0.097,
+    "avg_t_up": 0.006,
+    "avg_vram_gb": 3.699,
+    "max_vram_gb": 5.10,
+    "max_vram_reserved_gb": 7.575,
+    "avg_ram_gb": 2.783,
+    "n_matches_mean": 315945.235,
+    "avg_n_obj": 0.715
+  },
+  "eval": {
+    "miou": 0.295,
+    "macc": 0.403,
+    "f_miou": 0.527,
+    "f_macc": 0.650,
+    "head_iou": 0.424,
+    "head_acc": 0.546,
+    "comm_iou": 0.156,
+    "comm_acc": 0.237,
+    "tail_iou": 0.232,
+    "tail_acc": 0.341
+  },
+  "delta_vs_baseline": {
+    "scene_time_sec": -103.80,
+    "avg_fps": 0.049,
+    "avg_spf": -0.477,
+    "avg_t_sam": -0.472,
+    "avg_t_obj": -0.002,
+    "avg_t_clip": 0.000,
+    "avg_t_up": -0.002,
+    "avg_vram_gb": -0.726,
+    "max_vram_gb": -0.800,
+    "max_vram_reserved_gb": -0.755,
+    "miou": -0.061,
+    "macc": -0.071,
+    "f_miou": -0.020,
+    "f_macc": -0.036,
+    "head_iou": -0.004,
+    "head_acc": -0.006,
+    "comm_iou": -0.048,
+    "comm_acc": -0.076,
+    "tail_iou": -0.112,
+    "tail_acc": -0.118
+  },
+  "artifacts": {
+    "stdout_log": "/ws/external/experiments/2026-04-02_sam2-hiera-s-office0/stdout.log",
+    "output_root": "/ws/data/OVO/output/Replica/sam2_hiera_s_office0",
+    "analysis_report": "/ws/data/OVO/output/Replica/sam2_hiera_s_office0/analysis/report.md",
+    "prediction": "/ws/data/OVO/output/Replica/sam2_hiera_s_office0/replica/office0.txt",
+    "statistics": "/ws/data/OVO/output/Replica/sam2_hiera_s_office0/replica/statistics.txt"
+  },
+  "notes": {
+    "dominant_module": "SAM",
+    "checkpoint_added": "/ws/data/OVO/input/sam_ckpts/sam2.1_hiera_small.pt",
+    "comparison_focus": "Same SAM2.1 family as baseline, medium-size encoder."
+  }
+}
