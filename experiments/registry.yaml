@@ -18,3 +18,23 @@
   result_path: experiments/2026-04-02_baseline-office0/notes.md
   scene: office0
   summary: "Replica office0 baseline completed: 35.6% mIoU, 47.4% mAcc, 3.141s mean step time."
+- id: exp-002
+  name: fast_sam_office0
+  date: 2026-04-02
+  branch: exp/fast-sam-baseline-office0
+  commit: 88243fb
+  baseline: exp-001
+  status: done
+  result_path: experiments/2026-04-02_fast-sam-office0/notes.md
+  scene: office0
+  summary: "FastSAM office0 run completed: 27.7% mIoU, 43.5% mAcc, 2.811s mean step time, 3.813 GB mean VRAM."
+- id: exp-003
+  name: sam2_hiera_t_office0
+  date: 2026-04-02
+  branch: exp/sam2-hiera-t-office0
+  commit: 79212bf
+  baseline: exp-001
+  status: done
+  result_path: experiments/2026-04-02_sam2-hiera-t-office0/notes.md
+  scene: office0
+  summary: "SAM2.1 hiera_t office0 run completed: 30.6% mIoU, 42.5% mAcc, 2.471s mean step time, 3.666 GB mean VRAM."

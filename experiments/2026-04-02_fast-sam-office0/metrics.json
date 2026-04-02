@@ -1,0 +1,70 @@
+{
+  "experiment_id": "exp-002",
+  "name": "fast_sam_office0",
+  "date": "2026-04-02",
+  "branch": "exp/fast-sam-baseline-office0",
+  "commit": "88243fb",
+  "scene": "office0",
+  "dataset": "Replica",
+  "command": "OVO_DATA_ROOT=/ws/data/OVO DISABLE_WANDB=true OVO_SAM_VERSION=fast OVO_SAM_ENCODER=FastSAM OVO_SAM_CKPT_PATH=/ws/data/OVO/input/sam_ckpts python run_eval.py --dataset_name Replica --experiment_name fast_sam_office0 --scenes office0 --run --segment --eval",
+  "run": {
+    "scene_time_sec": 640.45,
+    "avg_fps": 0.323,
+    "avg_spf": 2.811,
+    "avg_t_sam": 2.693,
+    "avg_t_obj": 0.021,
+    "avg_t_clip": 0.103,
+    "avg_t_up": 0.005,
+    "avg_vram_gb": 3.813,
+    "max_vram_gb": 5.08,
+    "max_vram_reserved_gb": 8.2,
+    "avg_matches_mean": 315945.265,
+    "avg_n_obj": 0.405
+  },
+  "eval": {
+    "miou": 0.277,
+    "macc": 0.435,
+    "f_miou": 0.481,
+    "f_macc": 0.614,
+    "head_iou": 0.370,
+    "head_acc": 0.526,
+    "comm_iou": 0.189,
+    "comm_acc": 0.315,
+    "tail_iou": 0.209,
+    "tail_acc": 0.389
+  },
+  "delta_vs_baseline": {
+    "scene_time_sec": -70.09,
+    "avg_fps": 0.032,
+    "avg_spf": -0.330,
+    "avg_t_sam": -0.324,
+    "avg_t_obj": -0.002,
+    "avg_t_clip": 0.006,
+    "avg_t_up": -0.003,
+    "avg_vram_gb": -0.612,
+    "max_vram_gb": -0.820,
+    "max_vram_reserved_gb": -0.130,
+    "miou": -0.079,
+    "macc": -0.039,
+    "f_miou": -0.066,
+    "f_macc": -0.072,
+    "head_iou": -0.058,
+    "head_acc": -0.026,
+    "comm_iou": -0.015,
+    "comm_acc": 0.002,
+    "tail_iou": -0.135,
+    "tail_acc": -0.070
+  },
+  "artifacts": {
+    "stdout_log": "/ws/external/experiments/2026-04-02_fast-sam-office0/stdout.log",
+    "output_root": "/ws/data/OVO/output/Replica/fast_sam_office0",
+    "analysis_report": "/ws/data/OVO/output/Replica/fast_sam_office0/analysis/report.md",
+    "prediction": "/ws/data/OVO/output/Replica/fast_sam_office0/replica/office0.txt",
+    "statistics": "/ws/data/OVO/output/Replica/fast_sam_office0/replica/statistics.txt"
+  },
+  "notes": {
+    "dominant_module": "SAM",
+    "sam_share": 0.954,
+    "environment_caveat": "FastSAM's vendored ultralytics code required pkg_resources, so setuptools was pinned to 80.9.0 in the runtime environment before running the experiment."
+  }
+}
