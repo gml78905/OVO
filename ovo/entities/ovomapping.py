@@ -219,6 +219,12 @@ class OVOSemMap():
                         gc.collect()
                 
             self.ovo.complete_semantic_info()
+            if self.ovo.probabilistic_grouping.enabled:
+                map_data = self.slam_backbone.get_map()
+                kfs = self.slam_backbone.get_kfs()
+                updated_points_ins_ids = self.ovo.update_map(map_data, kfs)
+                if updated_points_ins_ids is not None:
+                    self.slam_backbone.update_pcd_obj_ids(updated_points_ins_ids)
             
             torch.cuda.synchronize()
             t_end = time.time()

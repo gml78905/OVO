@@ -10,6 +10,7 @@ from .clip_generator import CLIPGenerator
 from .mask_generator import MaskGenerator
 from .instance3d import Instance3D
 from .logger import Logger
+from .probabilistic_grouping import ProbabilisticGrouping
 
 class OVO:
     """ Initialize CLIP and SAM backbones, with a given configuration, and logger.
@@ -63,6 +64,10 @@ class OVO:
         self.th_centroid = config.get("th_centroid", 1.5)
         self.th_cossim = config.get("th_cossim", 0.81)
         self.th_points = config.get("th_points", 0.1)
+        prob_grouping_config = config.get("probabilistic_grouping", {}).copy()
+        prob_grouping_config.setdefault("centroid_th", self.th_centroid)
+        prob_grouping_config.setdefault("clip_cossim_th", self.th_cossim)
+        self.probabilistic_grouping = ProbabilisticGrouping(prob_grouping_config)
 
         if config.get("verbose", True):
             print('Semantic config')
@@ -256,21 +261,41 @@ class OVO:
         """
 
         matched_ins_info = {}
+        frame_segments = []
         for map_idx in range(seg_map.max()+1):
             map_ins_id = -1
             map_points = matched_points_idxs[matched_seg_idxs == map_idx]
             if len(map_points)> track_th:
                 mask_area = (seg_map == map_idx).sum().item()
-                assigned_mask = points_ins_ids[map_points] > -1                    
-                unassigned_points_ids = points_ids[map_points[~assigned_mask]].cpu().tolist()
+                assigned_mask = points_ins_ids[map_points] > -1
+                assigned_points = points_ins_ids[map_points[assigned_mask]]
+                candidate_scores = {}
+                if assigned_points.numel() > 0:
+                    unique_ids, counts = torch.unique(assigned_points, return_counts=True)
+                    candidate_scores = {
+                        int(ins_id.item()): float(count.item() / counts.sum().item())
+                        for ins_id, count in zip(unique_ids, counts)
+                    }
+                unassigned_points_ids = points_ids[map_points[~assigned_mask]].reshape(-1).cpu().tolist()
+                committed_confidence = 0.0
+                committed_margin = 0.0
                 #Assign points to 3D instance, or create a new instance
                 if assigned_mask.sum().item() > track_th:
-                    map_ins_id = torch.mode(points_ins_ids[map_points[assigned_mask]]).values.item()
-                    self.objects[map_ins_id].update(unassigned_points_ids, kf_id, mask_area)
-                    if map_ins_id in matched_ins_info.keys():
-                        matched_ins_info[map_ins_id].append((map_idx, mask_area))  
+                    if self.probabilistic_grouping.enabled:
+                        should_commit, candidate_id, committed_confidence, committed_margin = self.probabilistic_grouping.should_commit(candidate_scores)
+                        if should_commit:
+                            map_ins_id = candidate_id
                     else:
-                        matched_ins_info[map_ins_id]=[(map_idx, mask_area)]
+                        map_ins_id = torch.mode(points_ins_ids[map_points[assigned_mask]]).values.item()
+                        committed_confidence = candidate_scores.get(map_ins_id, 1.0)
+                        committed_margin = 1.0
+
+                    if map_ins_id > -1:
+                        self.objects[map_ins_id].update(unassigned_points_ids, kf_id, mask_area)
+                        if map_ins_id in matched_ins_info.keys():
+                            matched_ins_info[map_ins_id].append((map_idx, mask_area))
+                        else:
+                            matched_ins_info[map_ins_id]=[(map_idx, mask_area)]
 
                 elif len(unassigned_points_ids) > track_th:                    
                     map_ins_id = self.next_ins_id
@@ -278,10 +303,28 @@ class OVO:
                     #assigned points do not change obj id
                     self.objects[map_ins_id] = Instance3D(map_ins_id, kf_id=kf_id, points_ids=unassigned_points_ids, mask_area=mask_area)
                     matched_ins_info[map_ins_id]=[(map_idx, mask_area)]
+                    candidate_scores = {map_ins_id: 1.0}
+                    committed_confidence = 1.0
+                    committed_margin = 1.0
 
                 if map_ins_id > -1:
                     # Assignto matched unassigned points (id==-1) new instance id 
                     points_ins_ids[map_points[~assigned_mask]] = map_ins_id
+                frame_segments.append(
+                    {
+                        "posterior": candidate_scores,
+                        "committed_id": map_ins_id,
+                        "committed_confidence": committed_confidence,
+                        "committed_margin": committed_margin,
+                        "mask_area": mask_area,
+                        "point_count": len(map_points),
+                        "track_th": track_th,
+                        "point_ids": points_ids[map_points].reshape(-1).cpu().tolist(),
+                    }
+                )
+
+        if self.probabilistic_grouping.enabled:
+            self.probabilistic_grouping.observe_segments(kf_id, frame_segments)
         
         return points_ins_ids, matched_ins_info
 
@@ -404,6 +447,19 @@ class OVO:
             obj_pcd = points_3d[points_ins_ids == instance.id]
             obj_pcds[instance.id] = [obj_pcd, obj_pcd.mean(axis=0)]
 
+        if self.probabilistic_grouping.enabled:
+            self.objects = {instance.id: instance for instance in objects_list}
+            self.update_objects_clip()
+            self.probabilistic_grouping.update_groups(self.objects, obj_pcds)
+            summary = self.probabilistic_grouping.summary()
+            print(
+                "Semantic Map update: "
+                f"removed {len(objects_to_del)}, kept {len(self.objects)} proto-objects, "
+                f"grouped into {summary['semantic_groups']} semantic groups "
+                f"({summary['multi_member_groups']} multi-member groups, {summary['active_pairs']} active pair edges)"
+            )
+            return points_ins_ids
+
         objects = {}
         fused_objects = {}
         for i, instance1 in enumerate(objects_list):
@@ -524,15 +580,19 @@ class OVO:
         Return:
             - torch.Tensor: A tensor with shape (N, self.clip_generator.clip_dim) on self.device.
         """    
+        if self.probabilistic_grouping.enabled and len(self.probabilistic_grouping.object_groups) > 0 and len(self.probabilistic_grouping.group_clips) == 0:
+            self.probabilistic_grouping.rebuild_group_clips(self.objects)
         object_clips = torch.zeros((len(self.objects), self.clip_generator.clip_dim), device = self.device)
         for j, obj in enumerate(self.objects.values()):
             if obj.clip_feature is not None:
-                object_clips[j] = obj.clip_feature.to(self.device)
+                clip_feature = obj.clip_feature
             else:
                 # This should never happen
                 obj.to_update = True
                 obj.update_clip(self.keyframes["ins_descriptors"])
-                object_clips[j] = obj.clip_feature.to(self.device)
+                clip_feature = obj.clip_feature
+            clip_feature = self.probabilistic_grouping.get_object_clip(obj.id, clip_feature)
+            object_clips[j] = clip_feature.squeeze(0).to(self.device)
         return object_clips    
 
     def capture_dict(self, debug_info: bool) -> Dict[str, Any]:
@@ -549,6 +609,7 @@ class OVO:
         }
         for obj in self.objects.values():
             scene_dict.update(obj.export(debug_info))
+        scene_dict.update(self.probabilistic_grouping.capture_dict())
         if debug_info:
             scene_dict["frame_id"] = np.array(self.keyframes["frame_id"])
             scene_dict["ins_map"] = np.array(self.keyframes["ins_maps"])
@@ -574,6 +635,7 @@ class OVO:
             obj = Instance3D(i)
             obj.restore(scene_dict, debug_info)
             self.objects[obj.id] = obj
+        self.probabilistic_grouping.restore_dict(scene_dict)
         if debug_info:
             self.keyframes["frame_id"] = list(scene_dict["frame_id"])
             self.keyframes["ins_maps"] = [x.squeeze() for x in np.split(scene_dict["ins_map"], len(self.keyframes["frame_id"]))]

@@ -106,6 +106,9 @@ def run_scene(
         config["data"] = {}
     config["data"]["scene_name"] = scene
     config["data"]["input_path"] = str(path_utils.get_datasets_root() / dataset / scene)
+    frame_limit_env = os.environ.get("OVO_FRAME_LIMIT")
+    if frame_limit_env:
+        config["data"]["frame_limit"] = int(frame_limit_env)
 
     output_path = path_utils.get_output_root() / dataset
 
@@ -125,6 +128,28 @@ def run_scene(
     for key, value in sam_overrides.items():
         if value:
             config["semantic"]["sam"][key] = value
+
+    prob_group_env = os.environ.get("OVO_PROB_GROUPING")
+    if prob_group_env is not None:
+        config["semantic"].setdefault("probabilistic_grouping", {})
+        config["semantic"]["probabilistic_grouping"]["enabled"] = prob_group_env.lower() in ("1", "true", "yes")
+
+    prob_group_overrides = {
+        "commit_confidence": os.environ.get("OVO_PROB_COMMIT_CONFIDENCE"),
+        "commit_margin": os.environ.get("OVO_PROB_COMMIT_MARGIN"),
+        "edge_posterior_th": os.environ.get("OVO_PROB_EDGE_POSTERIOR_TH"),
+        "clip_cossim_th": os.environ.get("OVO_PROB_CLIP_COSSIM_TH"),
+        "centroid_th": os.environ.get("OVO_PROB_CENTROID_TH"),
+        "decay": os.environ.get("OVO_PROB_DECAY"),
+        "neg_obs_weight": os.environ.get("OVO_PROB_NEG_OBS_WEIGHT"),
+        "pos_obs_weight": os.environ.get("OVO_PROB_POS_OBS_WEIGHT"),
+        "object_support_weight": os.environ.get("OVO_PROB_OBJECT_SUPPORT_WEIGHT"),
+        "object_support_neg_weight": os.environ.get("OVO_PROB_OBJECT_SUPPORT_NEG_WEIGHT"),
+    }
+    for key, value in prob_group_overrides.items():
+        if value is not None:
+            config["semantic"].setdefault("probabilistic_grouping", {})
+            config["semantic"]["probabilistic_grouping"][key] = float(value)
 
     if os.getenv('DISABLE_WANDB') == 'true':
         config["use_wandb"] = False
