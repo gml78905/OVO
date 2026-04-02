@@ -1,0 +1,65 @@
+{
+  "experiment_id": "exp-002",
+  "name": "mobile_sam_office0",
+  "date": "2026-04-02",
+  "branch": "exp/mobile-sam-baseline-office0",
+  "commit": "d8aec63",
+  "baseline": "exp-001",
+  "scene": "office0",
+  "dataset": "Replica",
+  "command": "OVO_DATA_ROOT=/ws/data/OVO DISABLE_WANDB=true OVO_SAM_VERSION=mobile OVO_SAM_ENCODER=vit_t python run_eval.py --dataset_name Replica --experiment_name mobile_sam_office0 --scenes office0 --run --segment --eval",
+  "sam_override": {
+    "sam_version": "mobile",
+    "sam_encoder": "vit_t",
+    "sam_ckpt_path": "/ws/data/OVO/input/sam_ckpts/mobile_sam.pt"
+  },
+  "run": {
+    "scene_time_sec": 1718.14,
+    "avg_fps": 0.118,
+    "avg_spf": 8.217,
+    "avg_t_sam": 8.084,
+    "avg_t_obj": 0.028,
+    "avg_t_clip": 0.104,
+    "avg_t_up": 0.013,
+    "avg_vram_gb": 3.472,
+    "max_vram_gb": 4.85,
+    "max_vram_reserved_gb": 7.992,
+    "avg_ram_gb": 2.815,
+    "n_matches_mean": 315945.265
+  },
+  "eval": {
+    "miou": 0.284,
+    "macc": 0.406,
+    "f_miou": 0.54,
+    "f_macc": 0.7,
+    "head_iou": 0.389,
+    "head_acc": 0.541,
+    "comm_iou": 0.157,
+    "comm_acc": 0.214,
+    "tail_iou": 0.245,
+    "tail_acc": 0.382
+  },
+  "delta_vs_baseline": {
+    "scene_time_sec": 1007.6,
+    "avg_fps": -0.173,
+    "avg_spf": 5.076,
+    "avg_t_sam": 5.067,
+    "avg_t_obj": 0.005,
+    "avg_t_clip": 0.007,
+    "avg_t_up": 0.005,
+    "avg_vram_gb": -0.953,
+    "max_vram_gb": -1.05,
+    "max_vram_reserved_gb": -0.338,
+    "miou": -0.072,
+    "macc": -0.068,
+    "f_miou": -0.007,
+    "f_macc": 0.014
+  },
+  "artifacts": {
+    "stdout_log": "/ws/external/experiments/2026-04-02_mobile-sam-office0/stdout.log",
+    "output_root": "/ws/data/OVO/output/Replica/mobile_sam_office0",
+    "analysis_report": "/ws/data/OVO/output/Replica/mobile_sam_office0/analysis/report.md",
+    "prediction": "/ws/data/OVO/output/Replica/mobile_sam_office0/replica/office0.txt",
+    "statistics": "/ws/data/OVO/output/Replica/mobile_sam_office0/replica/statistics.txt"
+  }
+}
