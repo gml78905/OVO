@@ -2,7 +2,7 @@
   name: baseline
   date: 2026-04-02
   branch: baseline/2026-04-02-current-worktree
-  commit: pending
+  commit: 34bf6f6
   baseline: null
   status: committed
   result_path: experiments/2026-04-02_baseline.md
