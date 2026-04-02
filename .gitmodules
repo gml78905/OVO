@@ -4,3 +4,6 @@
 [submodule "thirdParty/perception_models"]
 	path = thirdParty/perception_models
 	url = https://github.com/facebookresearch/perception_models
+[submodule "thirdParty/MobileSAM"]
+	path = thirdParty/MobileSAM
+	url = https://github.com/ChaoningZhang/MobileSAM.git

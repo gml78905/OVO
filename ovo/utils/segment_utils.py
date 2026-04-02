@@ -3,10 +3,12 @@ from typing import Dict, Any, Tuple, List
 
 import torchvision.transforms.functional as F
 from copy import deepcopy
+from pathlib import Path
 import numpy as np
 import heapq
 import torch
 import os
+import sys
 
 
 def mask2segmap(masks: np.ndarray, image: np.ndarray, sort: bool = True) -> Tuple[np.ndarray, np.ndarray] :
@@ -271,12 +273,36 @@ def load_sam(config: Dict[str, Any], device: str = "cuda") -> SamAutomaticMaskGe
     """
     sam_version = config.get("sam_version","2.1")
 
-    model_cards = {"vit_b": "vit_b_01ec64.pth", "vit_h": "vit_h_4b8939.pth", "hiera_l": "hiera_large.pt", "hiera_t": "hiera_tiny.pt"}
+    model_cards = {
+        "vit_b": "vit_b_01ec64.pth",
+        "vit_h": "vit_h_4b8939.pth",
+        "vit_t": "mobile_sam.pt",
+        "hiera_l": "hiera_large.pt",
+        "hiera_t": "hiera_tiny.pt",
+    }
     sam_encoder = config.get("sam_encoder","hiera_l")
-    checkpoint_path =  os.path.join(config["sam_ckpt_path"],f"sam{sam_version}_{model_cards[sam_encoder]}") 
+    if sam_version == "mobile":
+        checkpoint_path = os.path.join(config["sam_ckpt_path"], model_cards[sam_encoder])
+    else:
+        checkpoint_path = os.path.join(config["sam_ckpt_path"], f"sam{sam_version}_{model_cards[sam_encoder]}")
             
     if sam_version == "":
         from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
+
+        sam = sam_model_registry[sam_encoder](checkpoint=checkpoint_path).to(device).eval()
+        sam_config = {
+            "points_per_side": config.get("points_per_side",32),
+            "pred_iou_thresh": config.get("nms_iou_th",0.8),
+            "stability_score_thresh": config.get("stability_score_th",0.85),
+            "min_mask_region_area": config.get("min_mask_region_area", 100),
+        }
+    elif sam_version == "mobile":
+        repo_root = Path(__file__).resolve().parents[2]
+        mobile_sam_root = repo_root / "thirdParty" / "MobileSAM"
+        if str(mobile_sam_root) not in sys.path:
+            sys.path.insert(0, str(mobile_sam_root))
+
+        from mobile_sam import SamAutomaticMaskGenerator, sam_model_registry
 
         sam = sam_model_registry[sam_encoder](checkpoint=checkpoint_path).to(device).eval()
         sam_config = {

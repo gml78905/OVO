@@ -38,7 +38,7 @@ class MaskGenerator:
 
     def load_mask_generator(self, config: Dict[str, Any]) -> None:
         sam_version = config.get("sam_version", "")
-        if sam_version == "":
+        if sam_version in ("", "mobile"):
             self.dtype = torch.float32
         else:
             torch.backends.cuda.matmul.allow_tf32 = True
