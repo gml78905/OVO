@@ -1,0 +1,186 @@
+{
+  "scene": "Replica/office0",
+  "run": "baseline_office0",
+  "map_point_count": 2159415,
+  "instance_point_count": 1727502,
+  "semantic_point_count": 1727502,
+  "instance_count": 139,
+  "semantic_class_count": 25,
+  "sample_frames": [
+    0,
+    400,
+    800,
+    1200,
+    1600,
+    1990
+  ],
+  "top_objects": [
+    {
+      "object_id": 17,
+      "point_count": 241763,
+      "semantic_class": "rug",
+      "semantic_confidence": 0.1961
+    },
+    {
+      "object_id": 51,
+      "point_count": 198192,
+      "semantic_class": "tv-screen",
+      "semantic_confidence": 0.0928
+    },
+    {
+      "object_id": 5,
+      "point_count": 134019,
+      "semantic_class": "tv-screen",
+      "semantic_confidence": 0.1691
+    },
+    {
+      "object_id": 67,
+      "point_count": 127907,
+      "semantic_class": "sofa",
+      "semantic_confidence": 0.2303
+    },
+    {
+      "object_id": 13,
+      "point_count": 90775,
+      "semantic_class": "ceiling",
+      "semantic_confidence": 0.0621
+    },
+    {
+      "object_id": 30,
+      "point_count": 86177,
+      "semantic_class": "wall",
+      "semantic_confidence": 0.0934
+    },
+    {
+      "object_id": 69,
+      "point_count": 53979,
+      "semantic_class": "wall",
+      "semantic_confidence": 0.0808
+    },
+    {
+      "object_id": 0,
+      "point_count": 51641,
+      "semantic_class": "table",
+      "semantic_confidence": 0.21
+    },
+    {
+      "object_id": 12,
+      "point_count": 50422,
+      "semantic_class": "wall",
+      "semantic_confidence": 0.08
+    },
+    {
+      "object_id": 7,
+      "point_count": 50182,
+      "semantic_class": "sofa",
+      "semantic_confidence": 0.2538
+    },
+    {
+      "object_id": 8,
+      "point_count": 42750,
+      "semantic_class": "door",
+      "semantic_confidence": 0.1706
+    },
+    {
+      "object_id": 15,
+      "point_count": 42253,
+      "semantic_class": "wall",
+      "semantic_confidence": 0.0676
+    },
+    {
+      "object_id": 54,
+      "point_count": 39595,
+      "semantic_class": "wall",
+      "semantic_confidence": 0.0982
+    },
+    {
+      "object_id": 59,
+      "point_count": 33709,
+      "semantic_class": "wall",
+      "semantic_confidence": 0.0864
+    },
+    {
+      "object_id": 133,
+      "point_count": 29544,
+      "semantic_class": "ceiling",
+      "semantic_confidence": 0.185
+    }
+  ],
+  "top_semantics": [
+    {
+      "class_index": 0,
+      "class_name": "wall",
+      "point_count": 393488
+    },
+    {
+      "class_index": 13,
+      "class_name": "tv-screen",
+      "point_count": 337665
+    },
+    {
+      "class_index": 7,
+      "class_name": "rug",
+      "point_count": 241763
+    },
+    {
+      "class_index": 1,
+      "class_name": "ceiling",
+      "point_count": 216931
+    },
+    {
+      "class_index": 5,
+      "class_name": "sofa",
+      "point_count": 215890
+    },
+    {
+      "class_index": 6,
+      "class_name": "table",
+      "point_count": 59705
+    },
+    {
+      "class_index": 24,
+      "class_name": "indoor-plant",
+      "point_count": 52724
+    },
+    {
+      "class_index": 3,
+      "class_name": "chair",
+      "point_count": 46574
+    },
+    {
+      "class_index": 10,
+      "class_name": "door",
+      "point_count": 42985
+    },
+    {
+      "class_index": 2,
+      "class_name": "floor",
+      "point_count": 27265
+    },
+    {
+      "class_index": 48,
+      "class_name": "bowl",
+      "point_count": 20798
+    },
+    {
+      "class_index": 28,
+      "class_name": "shelf",
+      "point_count": 16553
+    },
+    {
+      "class_index": 19,
+      "class_name": "bin",
+      "point_count": 10890
+    },
+    {
+      "class_index": 36,
+      "class_name": "desk-organizer",
+      "point_count": 10785
+    },
+    {
+      "class_index": 15,
+      "class_name": "pillar",
+      "point_count": 10775
+    }
+  ]
+}
