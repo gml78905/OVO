@@ -1,0 +1,16 @@
+experiment_id,name,date,branch,source,runtime_sec,avg_fps,avg_spf,avg_t_sam,avg_t_obj,avg_t_clip,avg_t_up,avg_vram_gb,max_vram_gb,max_reserved_vram_gb,miou,macc,f_miou,f_macc,head_iou,comm_iou,tail_iou,proto_objects,semantic_groups,multi_member_groups,active_pair_edges,grouping_variant,runtime_caveat,label,order,delta_miou_pp_vs_baseline,delta_macc_pp_vs_baseline,delta_runtime_sec_vs_baseline,delta_vram_gb_vs_baseline
+exp-001,baseline_office0,2026-04-02,baseline/2026-04-02-current-worktree,/ws/external/experiments/2026-04-02_baseline-office0/metrics.json,710.54,0.291,3.141,3.017,0.023,0.097,0.008,4.425,5.9,8.33,35.6,47.4,54.7,68.60000000000001,42.8,20.4,34.4,,,,,False,False,"baseline
+hiera_l",0,0.0,0.0,0.0,0.0
+mobile-sam,mobile_sam_office0,2026-04-02,exp/mobile-sam-baseline-office0,/ws/external/experiments/2026-04-02_mobile-sam-office0/stdout.log,1718.14,0.118,8.217,8.084,0.028,0.104,0.013,3.472,4.85,7.992,28.4,40.6,54.0,70.0,38.9,15.7,24.5,,,,,False,False,"mobile
+SAM",1,-7.200000000000003,-6.799999999999997,1007.6000000000001,-0.9529999999999998
+exp-002,fast_sam_office0,2026-04-02,exp/fast-sam-baseline-office0,/ws/external/experiments/2026-04-02_fast-sam-office0/metrics.json,640.45,0.323,2.811,2.693,0.021,0.103,0.005,3.813,5.08,8.2,27.700000000000003,43.5,48.1,61.4,37.0,18.9,20.9,,,,,False,False,FastSAM,2,-7.899999999999999,-3.8999999999999986,-70.08999999999992,-0.6119999999999997
+exp-004,sam2_hiera_s_office0,2026-04-02,exp/sam2-hiera-s-office0,/ws/external/experiments/2026-04-02_sam2-hiera-s-office0/metrics.json,606.74,0.34,2.664,2.545,0.021,0.097,0.006,3.699,5.1,7.575,29.5,40.300000000000004,52.7,65.0,42.4,15.6,23.200000000000003,,,,,False,False,"SAM2
+hiera_s",3,-6.100000000000001,-7.099999999999994,-103.79999999999995,-0.726
+exp-003,sam2_hiera_t_office0,2026-04-02,exp/sam2-hiera-t-office0,/ws/external/experiments/2026-04-02_sam2-hiera-t-office0/metrics.json,568.27,0.364,2.471,2.355,0.021,0.096,0.005,3.666,5.06,7.418,30.599999999999998,42.5,55.7,68.7,43.0,14.399999999999999,26.3,,,,,False,False,"SAM2
+hiera_t",4,-5.0000000000000036,-4.899999999999999,-142.26999999999998,-0.7589999999999999
+,2026-04-02_prob-tracklet-graph-v1-office0,2026-04-02,,/ws/external/experiments/2026-04-02_prob-tracklet-graph-v1-office0/metrics.json,559.1,0.36967749304302555,2.4355737161636353,2.26545,0.07304000000000001,0.09574999999999999,0.005435,3.6606559872,5.04844544,7.419723776,31.5,45.2,55.5,67.9,,,,134.0,130.0,4.0,4.0,True,False,"prob-v1
+hiera_t",5,-4.100000000000001,-2.1999999999999957,-151.43999999999994,-0.7643440127999996
+,2026-04-03_prob-tracklet-graph-v1-hiera-l-office0,2026-04-03,,/ws/external/experiments/2026-04-03_prob-tracklet-graph-v1-hiera-l-office0/metrics.json,648.45,0.319,2.86,2.705,0.057,0.097,0.007,4.419,5.85,8.329887744,34.1,45.9,53.3,66.5,,,,141.0,134.0,6.0,8.0,True,False,"prob-v1
+hiera_l",6,-1.5,-1.5,-62.08999999999992,-0.006000000000000227
+,2026-04-03_prob-tracklet-graph-v2-soft-fusion-hiera-l-office0,2026-04-03,,/ws/external/experiments/2026-04-03_prob-tracklet-graph-v2-soft-fusion-hiera-l-office0/metrics.json,242.09,0.889,0.891,0.745,0.051,0.097,0.003,4.419,5.85,8.329887744,35.4,47.6,54.4,68.0,,,,141.0,134.0,6.0,8.0,True,False,"prob-v2
+soft+hiera_l",7,-0.20000000000000284,0.20000000000000284,-468.44999999999993,-0.006000000000000227
