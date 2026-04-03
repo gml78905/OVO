@@ -27,6 +27,9 @@ class ProbabilisticGrouping:
         self.edge_posterior_th = float(config.get("edge_posterior_th", 0.72))
         self.clip_cossim_th = float(config.get("clip_cossim_th", 0.84))
         self.centroid_th = float(config.get("centroid_th", 1.5))
+        self.soft_clip_fusion = bool(config.get("soft_clip_fusion", True))
+        self.soft_clip_min_posterior = float(config.get("soft_clip_min_posterior", self.edge_posterior_th))
+        self.soft_clip_self_weight = float(config.get("soft_clip_self_weight", 3.0))
         self.decay = float(config.get("decay", 0.995))
         self.max_posterior_candidates = int(config.get("max_posterior_candidates", 3))
         self.point_belief_decay = float(config.get("point_belief_decay", 0.80))
@@ -42,6 +45,7 @@ class ProbabilisticGrouping:
         self.object_groups: Dict[int, int] = {}
         self.group_members: Dict[int, List[int]] = {}
         self.group_clips: Dict[int, torch.Tensor] = {}
+        self.object_clips: Dict[int, torch.Tensor] = {}
         self.last_group_summary = {
             "semantic_groups": 0,
             "grouped_proto_objects": 0,
@@ -235,6 +239,7 @@ class ProbabilisticGrouping:
             self.object_groups = {obj_id: obj_id for obj_id in objects.keys()}
             self.group_members = {obj_id: [obj_id] for obj_id in objects.keys()}
             self.group_clips = {}
+            self.object_clips = {}
             self.last_group_summary = {
                 "semantic_groups": len(self.object_groups),
                 "grouped_proto_objects": 0,
@@ -300,9 +305,13 @@ class ProbabilisticGrouping:
         self.group_members = {group_id: sorted(members) for group_id, members in self.group_members.items()}
 
         self.group_clips = {}
+        self.object_clips = {}
         for group_id, member_ids in self.group_members.items():
             member_clips = []
             member_weights = []
+            member_clip_lookup = {}
+            member_weight_lookup = {}
+            member_reference_lookup = {}
             reference = None
             for member_id in member_ids:
                 clip_feature = getattr(objects[member_id], "clip_feature", None)
@@ -310,8 +319,12 @@ class ProbabilisticGrouping:
                 if clip_flat is None:
                     continue
                 reference = clip_feature
+                member_clip_lookup[member_id] = clip_flat
+                member_reference_lookup[member_id] = clip_feature
                 member_clips.append(clip_flat)
-                member_weights.append(max(1.0, float(len(getattr(objects[member_id], "kfs_ids", [])))))
+                member_weight = max(1.0, float(len(getattr(objects[member_id], "kfs_ids", []))))
+                member_weights.append(member_weight)
+                member_weight_lookup[member_id] = member_weight
             if len(member_clips) == 0:
                 continue
             if len(member_clips) == 1:
@@ -323,7 +336,37 @@ class ProbabilisticGrouping:
                 group_clip = torch.nn.functional.normalize(group_clip, p=2, dim=0)
             self.group_clips[group_id] = self._restore_shape(group_clip.cpu(), reference)
 
+            for member_id in member_ids:
+                clip_flat = member_clip_lookup.get(member_id)
+                reference = member_reference_lookup.get(member_id)
+                if clip_flat is None or reference is None:
+                    continue
+
+                if not self.soft_clip_fusion or len(member_ids) == 1:
+                    fused_clip = clip_flat
+                else:
+                    fused_clip = clip_flat * self.soft_clip_self_weight
+                    total_weight = self.soft_clip_self_weight
+                    for other_id in member_ids:
+                        if other_id == member_id or other_id not in member_clip_lookup:
+                            continue
+                        posterior = self.posterior(member_id, other_id)
+                        if posterior < self.soft_clip_min_posterior:
+                            continue
+                        blend_weight = (posterior - self.soft_clip_min_posterior) / max(1e-6, 1.0 - self.soft_clip_min_posterior)
+                        blend_weight *= member_weight_lookup.get(other_id, 1.0)
+                        if blend_weight <= 0:
+                            continue
+                        fused_clip = fused_clip + member_clip_lookup[other_id] * blend_weight
+                        total_weight += blend_weight
+                    fused_clip = fused_clip / max(total_weight, 1e-6)
+                    fused_clip = torch.nn.functional.normalize(fused_clip, p=2, dim=0)
+                self.object_clips[member_id] = self._restore_shape(fused_clip.cpu(), reference)
+
     def get_object_clip(self, ins_id: int, fallback: torch.Tensor) -> torch.Tensor:
+        object_clip = self.object_clips.get(ins_id)
+        if object_clip is not None:
+            return object_clip
         group_id = self.object_groups.get(ins_id)
         if group_id is None:
             return fallback
@@ -385,6 +428,7 @@ class ProbabilisticGrouping:
             self.group_members.setdefault(group_id, []).append(obj_id)
         self.group_members = {group_id: sorted(members) for group_id, members in self.group_members.items()}
         self.group_clips = {}
+        self.object_clips = {}
 
     def summary(self) -> Dict[str, float]:
         summary = dict(self.last_group_summary)
