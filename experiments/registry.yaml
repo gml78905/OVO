@@ -68,3 +68,13 @@
   result_path: experiments/2026-04-03_prob-tracklet-graph-v1-hiera-l-office0/notes.md
   scene: office0
   summary: "Probabilistic reversible grouping v1 on hiera_l office0: 34.1% mIoU, 45.9% mAcc, 2.860s mean step time, 134 semantic groups from 141 proto-objects."
+- id: exp-007
+  name: prob_tracklet_graph_v2_soft_fusion_hiera_l_office0
+  date: 2026-04-03
+  branch: exp/prob-tracklet-graph-v2-soft-fusion-hiera-l-office0
+  commit: 9674acb
+  baseline: exp-001
+  status: done
+  result_path: experiments/2026-04-03_prob-tracklet-graph-v2-soft-fusion-hiera-l-office0/notes.md
+  scene: office0
+  summary: "Probabilistic grouping v2 with self-preserving soft fusion on hiera_l office0: 35.4% mIoU, 47.6% mAcc, same 134 semantic groups from 141 proto-objects, almost closing the baseline gap."
