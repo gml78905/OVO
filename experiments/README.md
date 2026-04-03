@@ -43,6 +43,7 @@ experiments/
 
 ## Notes
 
+- Unless the user says otherwise, new experiments should start from the baseline setting and compare back to `exp-001`.
 - Large artifacts should live outside git when needed; store their path here.
 - Text logs can be saved here, but avoid committing huge raw outputs.
 - If the working tree is dirty, record that explicitly in the notes.
