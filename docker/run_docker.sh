@@ -96,6 +96,17 @@ if [ -n "${DEBUGPY_PORT}" ]; then
     PORT_ARGS=(-p "${DEBUGPY_PORT}:${DEBUGPY_PORT}")
 fi
 
+DISPLAY_ARGS=()
+if [ -n "${DISPLAY:-}" ] && [ -d /tmp/.X11-unix ]; then
+    echo "X11:     ${DISPLAY} (mounted /tmp/.X11-unix)"
+    DISPLAY_ARGS=(
+        -v /tmp/.X11-unix:/tmp/.X11-unix:rw
+        -e DISPLAY="${DISPLAY}"
+    )
+else
+    echo "X11:     unavailable (GUI apps may not open)"
+fi
+
 DOCKER_RUN=(docker run -it --rm
     ${GPU_FLAG}
     --name "${CONTAINER_NAME}"
@@ -103,10 +114,10 @@ DOCKER_RUN=(docker run -it --rm
     --shm-size="${SHM_SIZE}"
     --privileged
     "${PORT_ARGS[@]}"
+    "${DISPLAY_ARGS[@]}"
     -v "${PROJECT_DIR}:${WORK_DIR}"
     -v "${DATASET_DIR}:${DATASET_MOUNT}"
     -w "${WORK_DIR}"
-    -e DISPLAY="${DISPLAY:-}"
     -e PYTHONUNBUFFERED=1
     -e CUDA_VISIBLE_DEVICES="${GPU_NUM}"
     -e OVO_DATA_ROOT="${DATA_ROOT_IN_CONTAINER}"
