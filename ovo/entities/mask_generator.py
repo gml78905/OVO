@@ -3,6 +3,8 @@ import numpy as np
 import torch
 import tqdm
 import os
+import imageio.v2 as imageio
+import matplotlib.pyplot as plt
 
 from ..utils import segment_utils
 
@@ -151,18 +153,21 @@ class MaskGenerator:
             else:
                 if self.mask_generator is None:
                     self.load_mask_generator(self.config)
-                seg_maps, binary_maps = self.segment(dataset[frame_id][1])
-                self._save_masks(seg_maps, binary_maps, frame_id)
+                image = dataset[frame_id][1]
+                seg_maps, binary_maps = self.segment(image)
+                self._save_masks(seg_maps, binary_maps, frame_id, image)
 
         self.precomputed = True    
     
-    def _save_masks(self, seg_map: np.ndarray, binary_maps: np.ndarray,  frame_id: int) -> None:
+    def _save_masks(self, seg_map: np.ndarray, binary_maps: np.ndarray, frame_id: int, image: np.ndarray | None = None) -> None:
         """
         Saves the segmentation map and binary maps of a fiven frame to self.masks_path.
         Args:
             - seg_map (np.ndarray): The segmentation map to be saved.
             - binary_maps (np.ndarray): The binary maps to be saved.
             - frame_id (int): The frame identifier used to name the saved files.
+            - image (np.ndarray, optional): The RGB image used as SAM input. If provided,
+              saves human-viewable PNGs alongside the numpy arrays.
         """
 
         map_path = os.path.join(self.masks_path, f"{frame_id:04d}_seg_map_default") 
@@ -170,8 +175,43 @@ class MaskGenerator:
 
         bmap_path = os.path.join(self.masks_path, f"{frame_id:04d}_bmap_default") 
         np.save(bmap_path, binary_maps)
+
+        if image is not None:
+            rgb_path = os.path.join(self.masks_path, f"{frame_id:04d}_rgb.png")
+            imageio.imwrite(rgb_path, image.astype(np.uint8))
+
+            seg_rgb = self._seg_idx_to_rgb(seg_map)
+            seg_map_path = os.path.join(self.masks_path, f"{frame_id:04d}_seg_map_default.png")
+            imageio.imwrite(seg_map_path, seg_rgb)
+
+            overlay = self._blend_overlay(image, seg_rgb)
+            overlay_path = os.path.join(self.masks_path, f"{frame_id:04d}_seg_overlay_default.png")
+            imageio.imwrite(overlay_path, overlay)
             
         return
+
+    @staticmethod
+    def _seg_idx_to_rgb(seg_map: np.ndarray, max_idx: int = 40) -> np.ndarray:
+        colours = plt.cm.tab20b.colors + plt.cm.tab20c.colors
+        cmap = np.asarray(colours[:max_idx], dtype=np.float32)
+        rgb = np.zeros((*seg_map.shape, 3), dtype=np.float32)
+        for idx in range(int(seg_map.max()) + 1):
+            mask = seg_map == idx
+            if np.any(mask):
+                rgb[mask] = cmap[idx % len(cmap)]
+        rgb[seg_map < 0] = 0
+        return (rgb * 255).astype(np.uint8)
+
+    @staticmethod
+    def _blend_overlay(image: np.ndarray, seg_rgb: np.ndarray, alpha: float = 0.6) -> np.ndarray:
+        image_f = image.astype(np.float32)
+        seg_f = seg_rgb.astype(np.float32)
+        valid = np.any(seg_rgb > 0, axis=-1, keepdims=True)
+        blended = image_f.copy()
+        blended[valid.squeeze(-1)] = (
+            (1.0 - alpha) * image_f[valid.squeeze(-1)] + alpha * seg_f[valid.squeeze(-1)]
+        )
+        return np.clip(blended, 0, 255).astype(np.uint8)
     
     def _load_masks(self, frame_id: int) -> Tuple[np.ndarray, np.ndarray]:
         """

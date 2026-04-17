@@ -492,22 +492,33 @@ def visualize_3d_points_obj_id_and_obb(points, obj_ids, colors):
     max_level = obj_ids.shape[1]
     if obj_ids is not None:
         colors_list = []
-        obb_list  = []
+        obb_list = [None] * max_level
         for i in range(max_level):
             colors_lvl = idxToRGB(obj_ids[...,i])[0]
             colors_list.append(colors_lvl)
-            obb_lvl_list = []
-            for j in range(-1,  max(obj_ids[:,i]+1)):
-                mask = obj_ids[...,i] == j
-                if mask.sum() > 0 :
-                    obj_pcd = o3d.geometry.PointCloud()
-                    obj_pcd.points = o3d.utility.Vector3dVector(points[mask])
-                    obj_pcd.colors = o3d.utility.Vector3dVector(colors[mask])
-                    obb = obj_pcd.get_axis_aligned_bounding_box()
-                    obb.color = colors_lvl[mask][0]
-                    obb_lvl_list.append([obb, obj_pcd])
-            obb_list.append(obb_lvl_list)
         point_cloud.colors = o3d.utility.Vector3dVector(colors_list[LVL])
+
+    def ensure_level_objects(level_idx):
+        if obb_list[level_idx] is not None:
+            return obb_list[level_idx]
+
+        obj_ids_level = np.asarray(obj_ids[..., level_idx]).reshape(-1)
+        unique_ids = np.unique(obj_ids_level)
+        obb_lvl_list = []
+        for obj_id in unique_ids:
+            mask = obj_ids_level == obj_id
+            if not np.any(mask):
+                continue
+            obj_pcd = o3d.geometry.PointCloud()
+            obj_pcd.points = o3d.utility.Vector3dVector(points[mask])
+            obj_pcd.colors = o3d.utility.Vector3dVector(colors[mask])
+            obb = obj_pcd.get_axis_aligned_bounding_box()
+            obb.color = colors_list[level_idx][mask][0]
+            obb_lvl_list.append([obb, obj_pcd])
+
+        obb_list[level_idx] = obb_lvl_list
+        return obb_lvl_list
+
     def change_background_to_black(vis):
         opt = vis.get_render_option()
         opt.background_color = np.asarray([0, 0, 0])
@@ -526,7 +537,7 @@ def visualize_3d_points_obj_id_and_obb(points, obj_ids, colors):
         return False
     def bboxes(vis):
         global BBOX_STATE
-        for obb in obb_list[LVL]:
+        for obb in ensure_level_objects(LVL):
             if BBOX_STATE:
                 vis.add_geometry(obb[0], reset_bounding_box=False)
             else:
@@ -540,13 +551,14 @@ def visualize_3d_points_obj_id_and_obb(points, obj_ids, colors):
     
     def next_obj(vis):
         global BBOX_IDX
-        BBOX_IDX =(BBOX_IDX+1)%(len(obb_list[LVL])+1)
+        level_objects = ensure_level_objects(LVL)
+        BBOX_IDX =(BBOX_IDX+1)%(len(level_objects)+1)
 
-        if BBOX_IDX < len(obb_list[LVL]):
-            vis.add_geometry(obb_list[LVL][BBOX_IDX][1], reset_bounding_box=False)
+        if BBOX_IDX < len(level_objects):
+            vis.add_geometry(level_objects[BBOX_IDX][1], reset_bounding_box=False)
         if BBOX_IDX > 0:
             try:
-                vis.remove_geometry(obb_list[LVL][BBOX_IDX-1][1], reset_bounding_box=False)
+                vis.remove_geometry(level_objects[BBOX_IDX-1][1], reset_bounding_box=False)
             except:
                 vis.clear_geometries()
         vis.update_renderer()
@@ -554,15 +566,16 @@ def visualize_3d_points_obj_id_and_obb(points, obj_ids, colors):
     
     def prev_obj(vis):
         global BBOX_IDX
+        level_objects = ensure_level_objects(LVL)
 
-        if BBOX_IDX < len(obb_list[LVL]):
-            vis.add_geometry(obb_list[LVL][BBOX_IDX-1][1], reset_bounding_box=False)
+        if BBOX_IDX < len(level_objects):
+            vis.add_geometry(level_objects[BBOX_IDX-1][1], reset_bounding_box=False)
         if BBOX_IDX > 0:
             try:
-                vis.remove_geometry(obb_list[LVL][BBOX_IDX][1], reset_bounding_box=False)
+                vis.remove_geometry(level_objects[BBOX_IDX][1], reset_bounding_box=False)
             except:
                 vis.clear_geometries()
-        BBOX_IDX =(BBOX_IDX-1) if BBOX_IDX >0 else len(obb_list[LVL])
+        BBOX_IDX =(BBOX_IDX-1) if BBOX_IDX >0 else len(level_objects)
         vis.update_renderer()
         return True        
 
