@@ -484,6 +484,18 @@ def visualize_3d_points_obj_id_and_obb(points, obj_ids, colors):
     BBOX_IDX = 0
     BBOX_STATE = False
     PCD_STATE = True
+    if hasattr(points, "detach"):
+        points = points.detach().cpu().numpy()
+    else:
+        points = np.asarray(points)
+    if hasattr(obj_ids, "detach"):
+        obj_ids = obj_ids.detach().cpu().numpy()
+    else:
+        obj_ids = np.asarray(obj_ids)
+    if hasattr(colors, "detach"):
+        colors = colors.detach().cpu().numpy()
+    else:
+        colors = np.asarray(colors)
     # Create an Open3D PointCloud object
     point_cloud = o3d.geometry.PointCloud()
     # Set the points
