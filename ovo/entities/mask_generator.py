@@ -235,8 +235,10 @@ class MaskGenerator:
                 idxs = np.arange(seg_map.max()+1)
                 binary_maps = np.repeat(np.expand_dims(seg_map, 0),len(idxs),axis=0) == np.expand_dims(idxs,[-1,-2])
         else:
-            print(f"No precomputed mask for frame {frame_id}")
-            seg_map, binary_maps = np.array([]), np.array([])
+            raise FileNotFoundError(
+                f"Missing required precomputed mask for frame {frame_id} at {map_path}. "
+                "This run is configured to use only precomputed masks, so SAM fallback is disabled."
+            )
 
         return seg_map, binary_maps
     

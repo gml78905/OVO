@@ -22,6 +22,7 @@ if os.environ.get("OVO_SAM2_ALLOW_FLASH", "").lower() not in ("1", "true", "yes"
         pass
 
 from ovo.utils import io_utils, gen_utils, eval_utils, path_utils
+from ovo.utils.gt_mask_utils import precompute_replica_gt_masks
 from ovo.entities.ovomapping import OVOSemMap
 from ovo.entities.ovo import OVO
 
@@ -70,7 +71,15 @@ def compute_scene_labels(scene_path: Path, dataset_name: str, scene_name: str, d
     del ovo
 
 
-def run_scene(scene: str, dataset: str, experiment_name: str, tmp_run: bool = False, depth_filter: bool = None) -> None:
+def run_scene(
+    scene: str,
+    dataset: str,
+    experiment_name: str,
+    tmp_run: bool = False,
+    depth_filter: bool = None,
+    use_gt_masks: bool = False,
+    replica_gt_root: str | None = None,
+) -> None:
 
     config = io_utils.load_config(path_utils.get_configs_root() / "ovo.yaml")
     config = path_utils.remap_data_paths(config)
@@ -106,6 +115,26 @@ def run_scene(scene: str, dataset: str, experiment_name: str, tmp_run: bool = Fa
 
     if depth_filter is not None:
         config["semantic"]["depth_filter"] = depth_filter
+
+    if use_gt_masks or config["semantic"].get("use_gt_masks", False):
+        if dataset.lower() != "replica":
+            raise ValueError("GT instance masks are currently only supported for Replica scenes.")
+        gt_masks_root = path_utils.get_working_root() / "masks" / "replica_gt_instance"
+        gt_root = replica_gt_root or os.environ.get("OVO_REPLICA_GT_ROOT", "/ws/data/replica_v1")
+        config["semantic"]["sam"]["precomputed"] = True
+        config["semantic"]["sam"]["precompute"] = False
+        config["semantic"]["sam"]["masks_base_path"] = str(gt_masks_root)
+        print(f"Using Replica GT instance masks from {gt_root}")
+        precompute_replica_gt_masks(
+            {"dataset_name": config["dataset_name"], "data": {**config["data"], **config["cam"]}},
+            scene,
+            gt_root,
+            gt_masks_root,
+            segment_every=config["semantic"].get("segment_every", 10),
+            max_distance=config["semantic"].get("gt_mask_max_distance", 0.05),
+            min_area=config["semantic"].get("gt_mask_min_area", 20),
+            force=True,
+        )
 
     if os.getenv('DISABLE_WANDB') == 'true':
         config["use_wandb"] = False
@@ -161,7 +190,14 @@ def main(args):
         input_path = str(path_utils.get_datasets_root() / args.dataset_name / scene)
         if args.run:
             t0 = time.time()
-            run_scene(scene, args.dataset_name, experiment_name, tmp_run = tmp_run)
+            run_scene(
+                scene,
+                args.dataset_name,
+                experiment_name,
+                tmp_run=tmp_run,
+                use_gt_masks=args.use_gt_masks,
+                replica_gt_root=args.replica_gt_root,
+            )
             t1 = time.time()
             print(f"Scene {scene} took: {t1-t0:.2f}")
         gc.collect()
@@ -192,5 +228,7 @@ if __name__ == "__main__":
     parser.add_argument('--segment', action='store_true', help="If set, use the reconstructed scene to segment the gt point-cloud, after running OVO.")
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--ignore_background', action='store_true',help="If set, does not use background ids from eval_info to compute metrics.")
+    parser.add_argument('--use_gt_masks', action='store_true', help="If set, build precomputed Replica GT instance masks and use them instead of SAM.")
+    parser.add_argument('--replica_gt_root', type=str, default=None, help="Path to original Replica dataset root containing office_0/habitat/mesh_semantic.ply.")
     args = parser.parse_args()
     main(args)
