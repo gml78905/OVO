@@ -1,4 +1,4 @@
-python visualize_scene.py /ws/data/OVO/output/Replica/ovo_mapping/office1 --visualize_gt_vs_pre 
+python visualize_scene.py /ws/data/OVO/output/Replica/ovo_mapping/office1 --visualize_obj
 
 
 
