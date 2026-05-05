@@ -38,6 +38,7 @@ class OVOSemMap():
         self._setup_output_path(output_path)
         io_utils.save_dict_to_yaml(config, "config.yaml", directory=self.output_path)
         config["output_path"] = str(self.output_path)
+        config["semantic"]["output_path"] = str(self.output_path)
 
         self.config = config
         self.device = config.get("device", "cuda")

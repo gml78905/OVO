@@ -316,3 +316,43 @@ def load_sam(config: Dict[str, Any], device: str = "cuda") -> SamAutomaticMaskGe
         **sam_config
     )
     return mask_generator
+
+
+def generate_masks_from_points(mask_generator, image: np.ndarray, point_coords: np.ndarray) -> List[Dict[str, Any]]:
+    points = np.asarray(point_coords, dtype=np.float32).reshape(-1, 2)
+    if points.size == 0:
+        return []
+
+    image_h, image_w = image.shape[:2]
+    normalized_points = points.copy()
+    normalized_points[:, 0] = np.clip(normalized_points[:, 0] / max(float(image_w), 1.0), 0.0, 1.0)
+    normalized_points[:, 1] = np.clip(normalized_points[:, 1] / max(float(image_h), 1.0), 0.0, 1.0)
+
+    original_point_grids = getattr(mask_generator, "point_grids", None)
+    try:
+        mask_generator.point_grids = [normalized_points]
+        return mask_generator.generate(image)
+    finally:
+        mask_generator.point_grids = original_point_grids
+
+
+def extract_unique_mask_points(masks: List[Dict[str, Any]]) -> np.ndarray:
+    if len(masks) == 0:
+        return np.zeros((0, 2), dtype=np.float32)
+
+    points: List[np.ndarray] = []
+    for mask in masks:
+        point_coords = mask.get("point_coords")
+        if not point_coords:
+            continue
+        point = np.asarray(point_coords[0], dtype=np.float32).reshape(1, 2)
+        points.append(point)
+
+    if not points:
+        return np.zeros((0, 2), dtype=np.float32)
+
+    stacked = np.concatenate(points, axis=0)
+    rounded = np.round(stacked).astype(np.int32)
+    _, unique_indices = np.unique(rounded, axis=0, return_index=True)
+    unique_indices = np.sort(unique_indices)
+    return stacked[unique_indices].astype(np.float32)

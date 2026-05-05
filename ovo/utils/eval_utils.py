@@ -13,7 +13,7 @@ import sys
 def match_labels_to_vtx(points_3d_labels: torch.Tensor, points_3d: torch.Tensor, mesh_vtx: torch.Tensor, filter_unasigned: bool = True, tree: str ="kd", verbose=False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     # assume points_3d and mesh_vtx in the same reference frame
     if filter_unasigned:
-        assigned_mask = (points_3d_labels >-1).squeeze()
+        assigned_mask = (points_3d_labels > 0).squeeze()
         if verbose:
             print(f"Assigned points {assigned_mask.sum()}, {assigned_mask.float().mean()*100:.1f}")
         points_3d_labels = points_3d_labels[assigned_mask]
@@ -257,4 +257,3 @@ def eval_scannetpp_semantic(cfg: Dict[str, Any], top_k: List[int] = [1], verbose
 
         print('----------------------------------------------------')
     return confmats[1].miou
-

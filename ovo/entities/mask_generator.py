@@ -18,6 +18,8 @@ class MaskGenerator:
     def __init__(self, config: Dict[str, Any], scene_name: str = None, device = "cuda") -> None:
         self.precomputed = config["precomputed"]
         self.config = config
+        self.last_surviving_prompt_points = np.zeros((0, 2), dtype=np.float32)
+        self.last_input_prompt_count = 0
         if scene_name:
             self.masks_path = os.path.join(config["masks_base_path"], scene_name)
         else:
@@ -86,7 +88,7 @@ class MaskGenerator:
         if self.mask_generator:
             self.mask_generator.predictor.model.cuda()
     
-    def get_masks(self, image: np.ndarray, frame_id: int = None):
+    def get_masks(self, image: np.ndarray, frame_id: int = None, prompt_points: np.ndarray | None = None):
         """
         Generate or load segmentation and binary masks for a given image.
 
@@ -100,14 +102,16 @@ class MaskGenerator:
         """
 
         if self.precomputed:
+            self.last_surviving_prompt_points = np.zeros((0, 2), dtype=np.float32)
+            self.last_input_prompt_count = 0
             seg_map, binary_maps = self._load_masks(frame_id)
         else:
-            seg_map, binary_maps = self.segment(image)
+            seg_map, binary_maps = self.segment(image, prompt_points=prompt_points)
 
         return torch.from_numpy(seg_map).to(self.device), torch.from_numpy(binary_maps).to(self.device)
     
     @torch.no_grad
-    def segment(self, image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def segment(self, image: np.ndarray, prompt_points: np.ndarray | None = None) -> Tuple[np.ndarray, np.ndarray]:
         """ 
         For an image compute SAM masks and conver to binary maps.
         Args:
@@ -118,11 +122,22 @@ class MaskGenerator:
         """
 
         with torch.autocast(device_type=self.device, dtype=self.dtype):
-            masks = self.mask_generator.generate(image) 
+            if prompt_points is not None:
+                self.last_input_prompt_count = int(np.asarray(prompt_points).reshape(-1, 2).shape[0])
+                masks = segment_utils.generate_masks_from_points(self.mask_generator, image, prompt_points)
+            else:
+                point_grids = getattr(self.mask_generator, "point_grids", None)
+                if point_grids is None:
+                    self.last_input_prompt_count = int(self.config.get("points_per_side", 32) ** 2)
+                else:
+                    self.last_input_prompt_count = int(sum(np.asarray(grid).shape[0] for grid in point_grids))
+                masks = self.mask_generator.generate(image)
             if len(masks)==0:
+                self.last_surviving_prompt_points = np.zeros((0, 2), dtype=np.float32)
                 return np.array([]), np.array([])
             
             masks_default, = segment_utils.masks_update(masks, iou_thr=self.nms_iou_th, score_thr=self.nms_score_th, inner_thr=self.nms_inner_th)
+            self.last_surviving_prompt_points = segment_utils.extract_unique_mask_points(masks_default)
             seg_map, binary_maps = segment_utils.mask2segmap(masks_default, image)
         
         return seg_map, binary_maps

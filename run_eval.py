@@ -79,6 +79,9 @@ def run_scene(
     depth_filter: bool = None,
     use_gt_masks: bool = False,
     replica_gt_root: str | None = None,
+    save_live_instance_vis: bool = False,
+    save_selective_prompt_debug: bool = False,
+    use_selective_prompt_points: bool = False,
 ) -> None:
 
     config = io_utils.load_config(path_utils.get_configs_root() / "ovo.yaml")
@@ -115,6 +118,15 @@ def run_scene(
 
     if depth_filter is not None:
         config["semantic"]["depth_filter"] = depth_filter
+
+    if save_live_instance_vis:
+        config["semantic"].setdefault("live_instance_vis", {})
+        config["semantic"]["live_instance_vis"]["enabled"] = True
+    if save_selective_prompt_debug:
+        config["semantic"].setdefault("selective_prompt_debug", {})
+        config["semantic"]["selective_prompt_debug"]["enabled"] = True
+    if use_selective_prompt_points:
+        config["semantic"]["sam"]["use_prompt_plan_points"] = True
 
     if use_gt_masks or config["semantic"].get("use_gt_masks", False):
         if dataset.lower() != "replica":
@@ -197,6 +209,9 @@ def main(args):
                 tmp_run=tmp_run,
                 use_gt_masks=args.use_gt_masks,
                 replica_gt_root=args.replica_gt_root,
+                save_live_instance_vis=args.save_live_instance_vis,
+                save_selective_prompt_debug=args.save_selective_prompt_debug,
+                use_selective_prompt_points=args.use_selective_prompt_points,
             )
             t1 = time.time()
             print(f"Scene {scene} took: {t1-t0:.2f}")
@@ -230,5 +245,8 @@ if __name__ == "__main__":
     parser.add_argument('--ignore_background', action='store_true',help="If set, does not use background ids from eval_info to compute metrics.")
     parser.add_argument('--use_gt_masks', action='store_true', help="If set, build precomputed Replica GT instance masks and use them instead of SAM.")
     parser.add_argument('--replica_gt_root', type=str, default=None, help="Path to original Replica dataset root containing office_0/habitat/mesh_semantic.ply.")
+    parser.add_argument('--save_live_instance_vis', action='store_true', help="If set, save per-frame debug images showing SAM and projected live 3D instance ids.")
+    parser.add_argument('--save_selective_prompt_debug', action='store_true', help="If set, save known/unknown split debug images with object-wise known masks and sampled prompt points.")
+    parser.add_argument('--use_selective_prompt_points', action='store_true', help="If set, replace SAM auto-grid points with the selective prompt points built from known/unknown regions.")
     args = parser.parse_args()
     main(args)

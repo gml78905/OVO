@@ -5,7 +5,7 @@ import pprint
 import torch
 import time
 
-from ..utils import geometry_utils, instance_utils
+from ..utils import geometry_utils, hybrid_mask_utils, instance_utils, live_instance_vis
 from .clip_generator import CLIPGenerator
 from .mask_generator import MaskGenerator
 from .instance3d import Instance3D
@@ -55,9 +55,29 @@ class OVO:
         self.keyframes_queue = deque([])
         self.objects=dict()
         self._time_cache = []
+        self._last_prompt_timing: Dict[str, float] = {}
         
-        self.next_ins_id = 0
+        self.next_ins_id = 1
         self.kf_id = 0
+        self.use_selective_prompt_points = config["sam"].get("use_prompt_plan_points", False)
+        self.live_instance_vis_dir = None
+        live_instance_vis_config = config.get("live_instance_vis", {})
+        if live_instance_vis_config.get("enabled", False):
+            output_root = config.get("output_path")
+            if output_root is not None:
+                self.live_instance_vis_dir = (
+                    live_instance_vis_config.get("output_dir")
+                    or f"{output_root}/logger/live_instance_vis"
+                )
+        self.selective_prompt_debug_dir = None
+        selective_prompt_debug_config = config.get("selective_prompt_debug", {})
+        if selective_prompt_debug_config.get("enabled", False):
+            output_root = config.get("output_path")
+            if output_root is not None:
+                self.selective_prompt_debug_dir = (
+                    selective_prompt_debug_config.get("output_dir")
+                    or f"{output_root}/logger/selective_prompt_debug"
+                )
 
         # Sem loop-closure parameters
         self.th_centroid = config.get("th_centroid", 1.5)
@@ -136,14 +156,39 @@ class OVO:
             - points_ins_ids (torch.Tensor): updated ids of 3D instances associated to each 3d point after current keyframe segmentation.
         """
         frame_id, image = frame_data[:2]
+        frame_start_time = time.perf_counter()
+        self._last_prompt_timing = {}
+        prompt_plan = None
+        if self.use_selective_prompt_points or self.selective_prompt_debug_dir is not None:
+            prompt_plan = self._build_selective_prompt_plan(frame_data, map_data, c2w)
 
-        seg_maps, binary_maps = self._get_masks(image, frame_id)
+        prompt_points = None
+        if self.use_selective_prompt_points and prompt_plan is not None:
+            prompt_points = hybrid_mask_utils.collect_all_prompt_points(prompt_plan)
+
+        seg_maps, binary_maps = self._get_masks(image, frame_id, prompt_points=prompt_points)
+        if (
+            self.selective_prompt_debug_dir is not None
+            and prompt_plan is not None
+        ):
+            self._save_selective_prompt_debug(
+                frame_id,
+                image,
+                prompt_plan,
+                sam_surviving_points=self.mask_generator.last_surviving_prompt_points if self.mask_generator is not None else None,
+                sam_seg_map=seg_maps.detach().cpu().numpy() if hasattr(seg_maps, "detach") else seg_maps,
+                depth=frame_data[2],
+                points_3d=map_data[0],
+                point_instance_ids=map_data[2],
+                c2w=c2w,
+                rgb_depth_ratio=frame_data[3],
+            )
         if len(seg_maps) == 0:
             print(f"No mask segmented in {frame_id}!")
             return None
 
         last_id = self.next_ins_id
-        matched_ins_ids, binary_maps, n_matched_points, updated_ponts_ins_ids = self._match_and_track_instances(frame_data[1:], map_data, c2w, seg_maps, binary_maps)
+        matched_ins_ids, binary_maps, n_matched_points, updated_ponts_ins_ids = self._match_and_track_instances(frame_id, frame_data[1:], map_data, c2w, seg_maps, binary_maps)
             
         # Save keyframe information
         self.keyframes_queue.append([matched_ins_ids, binary_maps, image, self.kf_id])
@@ -151,22 +196,107 @@ class OVO:
 
         if self.config.get("log", False):
             self.keyframes["frame_id"].append(frame_id)
+            frame_total = time.perf_counter() - frame_start_time
+            prompt_timing = {
+                "t_prompt_total": round(self._last_prompt_timing.get("t_prompt_total", 0.0), 6),
+                "t_prompt_proj_known": round(self._last_prompt_timing.get("t_prompt_proj_known", 0.0), 6),
+                "t_prompt_known": round(self._last_prompt_timing.get("t_prompt_known", 0.0), 6),
+                "t_prompt_seen_unknown": round(self._last_prompt_timing.get("t_prompt_seen_unknown", 0.0), 6),
+                "t_prompt_seen_unknown_mask": round(self._last_prompt_timing.get("t_prompt_seen_unknown_mask", 0.0), 6),
+                "t_prompt_seen_unknown_components": round(self._last_prompt_timing.get("t_prompt_seen_unknown_components", 0.0), 6),
+                "t_prompt_seen_unknown_sample": round(self._last_prompt_timing.get("t_prompt_seen_unknown_sample", 0.0), 6),
+                "t_prompt_brand_new_unknown": round(self._last_prompt_timing.get("t_prompt_brand_new_unknown", 0.0), 6),
+                "t_prompt_collect": round(self._last_prompt_timing.get("t_prompt_collect", 0.0), 6),
+                "t_frame_total": round(frame_total, 6),
+            }
             self.logger.log_ovo_stats(
                 {
                     "frame_id":frame_id,
                     "n_obj":[self.next_ins_id-last_id],
                     "n_matches":n_matched_points, 
+                    "n_prompt_points": int(self.mask_generator.last_input_prompt_count) if self.mask_generator is not None else 0,
+                    "n_surviving_points": int(np.asarray(self.mask_generator.last_surviving_prompt_points).shape[0]) if self.mask_generator is not None else 0,
                     "t_sam":round(self._time_cache[0],2),
                     "t_obj":round(self._time_cache[1],3),
+                    **prompt_timing,
                 },
                 print_output=True
                 )
             self._time_cache = []
 
         return updated_ponts_ins_ids
+
+    def _build_selective_prompt_plan(
+        self,
+        frame_data: Tuple[int, np.ndarray, np.ndarray, Tuple[float, float, int]],
+        map_data: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        c2w: torch.Tensor,
+    ) -> Dict[str, object]:
+        _, image, depth, rgb_depth_ratio = frame_data
+        points_3d, _, points_ins_ids = map_data
+        debug_config = self.config.get("selective_prompt_debug", {})
+        prompt_plan, timings = hybrid_mask_utils.build_selective_prompt_plan_timed(
+            points_3d=points_3d,
+            points_ins_ids=points_ins_ids,
+            depth=depth,
+            intrinsics=self.cam_intrinsics,
+            c2w=c2w,
+            image_shape=image.shape[:2],
+            rgb_depth_ratio=rgb_depth_ratio,
+            match_distance_th=self.config["match_distance_th"],
+            known_min_points=debug_config.get("known_min_points", 20),
+            known_dilation_kernel=debug_config.get("known_dilation_kernel", 5),
+            known_closing_kernel=debug_config.get("known_closing_kernel", 5),
+            unknown_min_area=debug_config.get("unknown_min_area", 200),
+            unknown_area_per_point=debug_config.get("unknown_area_per_point", 4000),
+            unknown_max_points=debug_config.get("unknown_max_points", 8),
+            unknown_min_peak_distance=debug_config.get("unknown_min_peak_distance", 2.0),
+        )
+        self._last_prompt_timing = timings
+        return prompt_plan
+
+    def _save_selective_prompt_debug(
+        self,
+        frame_id: int,
+        image: np.ndarray,
+        prompt_plan: Dict[str, object],
+        sam_surviving_points: np.ndarray | None = None,
+        sam_seg_map: np.ndarray | None = None,
+        depth: np.ndarray | torch.Tensor | None = None,
+        points_3d: torch.Tensor | None = None,
+        point_instance_ids: torch.Tensor | None = None,
+        c2w: torch.Tensor | None = None,
+        rgb_depth_ratio: Tuple[float, float, int] = (),
+    ) -> None:
+        projected_object_ids_view = None
+        if (
+            depth is not None
+            and points_3d is not None
+            and point_instance_ids is not None
+            and c2w is not None
+        ):
+            projected_object_ids_view = live_instance_vis.build_projected_instance_overlay_image(
+                image=image,
+                depth=depth,
+                points_3d=points_3d,
+                point_instance_ids=point_instance_ids,
+                intrinsics=self.cam_intrinsics,
+                c2w=c2w,
+                match_distance_th=self.config["match_distance_th"],
+                rgb_depth_ratio=rgb_depth_ratio,
+            )
+        hybrid_mask_utils.save_selective_prompt_debug_views(
+            output_dir=self.selective_prompt_debug_dir,
+            frame_id=frame_id,
+            image=image,
+            prompt_plan=prompt_plan,
+            sam_surviving_points=sam_surviving_points,
+            sam_seg_map=sam_seg_map,
+            projected_object_ids_view=projected_object_ids_view,
+        )
     
     @profil
-    def _get_masks(self, image: np.ndarray, frame_id: int):
+    def _get_masks(self, image: np.ndarray, frame_id: int, prompt_points: np.ndarray | None = None):
         """ Profiled call to mask_generator to either compute segmentation maps for image, or load precomputed segments.
         Args:
             - frame_id (int): current frame id.
@@ -176,10 +306,10 @@ class OVO:
             - seg_map (torch.Tensor): The segmentation maps on self.device with shape (H, W).
             - binary_maps (torch.Tensor): The binary maps on self.device with shape (N, H, W).
         """
-        return self.mask_generator.get_masks(image, frame_id)
+        return self.mask_generator.get_masks(image, frame_id, prompt_points=prompt_points)
     
     @profil
-    def _match_and_track_instances(self, frame_data: Tuple[int, np.ndarray, np.ndarray, Tuple[float, float, int]], map_data: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], c2w: torch.Tensor, seg_map: torch.Tensor, binary_maps: torch.Tensor) -> Tuple[List[int], torch.Tensor, int]:
+    def _match_and_track_instances(self, frame_id: int, frame_data: Tuple[int, np.ndarray, np.ndarray, Tuple[float, float, int]], map_data: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], c2w: torch.Tensor, seg_map: torch.Tensor, binary_maps: torch.Tensor) -> Tuple[List[int], torch.Tensor, int]:
         """ For the current frame (1) computes using SAM for each level i \in M, a set of segmentation maps; (2) track segmentation maps between frames projecting 3D points and associating the map to 3D instances, if 3D points don't have an associated 3D instance, create a new; (3) associate 3D points without an instance id to matched instances; (4) fuse 2D segments associated to the same 3D instance. 
 
         Args:
@@ -222,6 +352,7 @@ class OVO:
         matched_seg_idxs = seg_map[matches[:,1], matches[:,0]]
 
         frustum_points_ids, frustum_points_ins_ids = points_ids[frustum_mask], points_ins_ids[frustum_mask]
+        frustum_points_ins_ids = self._mark_projected_points_as_seen(frustum_points_ins_ids, matched_points_idxs)
         frustum_points_ins_ids, matched_ins_info = self._track_objects(frustum_points_ids, frustum_points_ins_ids, matched_points_idxs, matched_seg_idxs, seg_map, self.config["track_th"], kf_id)
         matched_ins_ids, binary_maps = self._fuse_masks_with_same_ins_id(binary_maps, matched_ins_info, kf_id)
 
@@ -235,7 +366,31 @@ class OVO:
                     ins_maps[binary_maps[map_idx]] = ins_id
             self.keyframes["ins_maps"].append(ins_maps.cpu().numpy())
 
+        if self.live_instance_vis_dir is not None:
+            live_instance_vis.save_live_instance_debug_image(
+                output_dir=self.live_instance_vis_dir,
+                frame_id=frame_id,
+                image=image,
+                depth=depth,
+                points_3d=points_3d,
+                point_instance_ids=updated_ponts_ins_ids,
+                intrinsics=self.cam_intrinsics,
+                c2w=c2w,
+                seg_map=seg_map,
+                match_distance_th=self.config["match_distance_th"],
+                rgb_depth_ratio=rgb_depth_ratio,
+            )
+
         return matched_ins_ids, binary_maps, len(matched_points_idxs), updated_ponts_ins_ids
+
+    def _mark_projected_points_as_seen(self, points_ins_ids: torch.Tensor, matched_points_idxs: torch.Tensor) -> torch.Tensor:
+        if matched_points_idxs.numel() == 0:
+            return points_ins_ids
+        projected_mask = torch.zeros_like(points_ins_ids, dtype=torch.bool)
+        projected_mask[matched_points_idxs] = True
+        unseen_mask = points_ins_ids < 0
+        points_ins_ids[torch.logical_and(projected_mask, unseen_mask)] = 0
+        return points_ins_ids
             
     def _track_objects(self, points_ids: torch.Tensor, points_ins_ids: torch.Tensor, matched_points_idxs: torch.Tensor, matched_seg_idxs: torch.Tensor, seg_map: torch.Tensor, track_th: float, kf_id: int) -> tuple[torch.Tensor, Dict[int, List[Tuple[int, int]]]]:
         """  We project 3D points and match with segmentation maps. Then we assign to each segmentation map the id of the 3D instance associated with the majority of points projected into it. If the set points don't have an object assigned, a new object is created and assigned to them. Points without an object assigned get assigned the segmentation map's instance.
@@ -257,7 +412,7 @@ class OVO:
             map_points = matched_points_idxs[matched_seg_idxs == map_idx]
             if len(map_points)> track_th:
                 mask_area = (seg_map == map_idx).sum().item()
-                assigned_mask = points_ins_ids[map_points] > -1                    
+                assigned_mask = points_ins_ids[map_points] > 0
                 unassigned_points_ids = points_ids[map_points[~assigned_mask]].cpu().tolist()
                 #Assign points to 3D instance, or create a new instance
                 if assigned_mask.sum().item() > track_th:
@@ -275,8 +430,8 @@ class OVO:
                     self.objects[map_ins_id] = Instance3D(map_ins_id, kf_id=kf_id, points_ids=unassigned_points_ids, mask_area=mask_area)
                     matched_ins_info[map_ins_id]=[(map_idx, mask_area)]
 
-                if map_ins_id > -1:
-                    # Assignto matched unassigned points (id==-1) new instance id 
+                if map_ins_id > 0:
+                    # Assign matched seen-but-unlabeled points (id<=0) to the tracked/new instance.
                     points_ins_ids[map_points[~assigned_mask]] = map_ins_id
         
         return points_ins_ids, matched_ins_info

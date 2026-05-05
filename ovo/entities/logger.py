@@ -13,7 +13,13 @@ class Logger:
         (self.output_path / "logger").mkdir(exist_ok=True, parents=True)
         (self.output_path / "logger" / "segment_vis").mkdir(exist_ok=True, parents=True)
         stat_keys = [
-            "frame_id", "t_sam", "t_obj","n_obj", "n_matches", "t_up", "t_seg",   "t_clip", "avg_fps", "ram", "vram", "spf"]
+            "frame_id", "t_sam", "t_obj", "t_prompt_total", "t_prompt_proj_known",
+            "t_prompt_known", "t_prompt_seen_unknown", "t_prompt_brand_new_unknown",
+            "t_prompt_seen_unknown_mask", "t_prompt_seen_unknown_components",
+            "t_prompt_seen_unknown_sample", "t_prompt_collect", "t_frame_total",
+            "n_prompt_points", "n_surviving_points",
+            "n_obj", "n_matches", "t_up",
+            "t_seg", "t_clip", "avg_fps", "ram", "vram", "spf"]
         
         self.stats ={key: [] for key in stat_keys}
         try:
